@@ -3,7 +3,6 @@
 
 from functools import partial
 import logging
-from unittest.mock import MagicMock
 
 from pytooth.errors import CommandError, InvalidOperationError
 from pytooth.bluez5.helpers import Bluez5Utils
@@ -71,7 +70,7 @@ class BaseAdapter:
         if not self._started:
             raise InvalidOperationError("Not started.")
         if self._adapter_props_proxy is None:
-            raise InvalidOperationError("Adapter not available.")
+            raise InvalidOperationError("No adapter available.")
             
         try:
             self._adapter_props_proxy.Discoverable = enabled
@@ -87,7 +86,7 @@ class BaseAdapter:
         if not self._started:
             raise InvalidOperationError("Not started.")
         if self._adapter_props_proxy is None:
-            raise InvalidOperationError("Adapter not available.")
+            raise InvalidOperationError("No adapter available.")
 
         try:
             self._adapter_props_proxy.Pairable = enabled
@@ -114,25 +113,30 @@ class BaseAdapter:
                 bus=self._bus,
                 address=self._adapter_address)
 
-            # notify if state changed since last check
-            s1 = adapter is None and self._adapter_proxy is not None
-            s2 = adapter is not None and self._adapter_proxy is None
-            adapter = adapter or MagicMock(Name=None, Address=None)
-            logger.info("BT adapter '{} - {}' is{} available.".format(
-                adapter.Name,
-                adapter.Address,
-                "" if adapter.Address else " not"))
-            if s1 or s2:
+            # check adapter connection status
+            is_found = adapter is not None and self._adapter_proxy is None
+            is_lost = adapter is None and self._adapter_proxy is not None
+            
+            # notify
+            if is_lost:
+                logger.info("No suitable adapter is available.")
+                self._adapter_proxy = None
+                self._adapter_props_proxy = None
+            if is_found:
+                logger.info("Adapter '{} - {}' is available.".format(
+                    adapter.Name,
+                    adapter.Address))
                 self._adapter_proxy = adapter[Bluez5Utils.ADAPTER_INTERFACE]
-                self._adapter_props_proxy = adapter if adapter.Address else None
-                if self.on_connected_changed is not None:
-                    self.io_loop.add_callback(
-                        callback=partial(
-                            self.on_connected_changed,
-                            connected=s2))
+                self._adapter_props_proxy = adapter
+            if (is_found or is_lost) and self.on_connected_changed is not None:
+                self.io_loop.add_callback(
+                    callback=partial(
+                        self.on_connected_changed,
+                        adapter_path=
+                        connected=s2))
 
         except Exception as e:
-            logger.exception("Failed to get BT adapter.")
+            logger.exception("Failed to get suitable adapter.")
             
         self.io_loop.call_later(
             delay=self.retry_interval,
