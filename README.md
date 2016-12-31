@@ -5,11 +5,7 @@ A wrapper library for interacting with the Bluez5 DBus API. Currently these prof
 * HFP
 * A2DP
 
-### What is this repository for? ###
-
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+Bluez5 documentation available at https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 
 ### How do I get set up? ###
 
@@ -20,13 +16,6 @@ A wrapper library for interacting with the Bluez5 DBus API. Currently these prof
 * How to run tests
 * Deployment instructions
 
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
 ### Who do I talk to? ###
 
-* Repo owner or admin
-* Other community or team contact
+* Anthony Ishkan (anthony.ishkan@gmail.com)

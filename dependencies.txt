@@ -1,0 +1,1 @@
+file:./packages/pygobject-3.22.0#egg=pygobject-3.22.0
