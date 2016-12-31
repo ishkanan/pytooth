@@ -43,7 +43,7 @@ def validate_config(config):
 
     # Optional string properties
     for s in ["preferredaddress"]:
-        arg = subconfig.get(s, None)
+        arg = config.get(s, None)
         if not isinstance(arg, str):
             raise ConfigurationError(
                 "'{}' must be a string.".format(s))

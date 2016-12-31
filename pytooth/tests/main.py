@@ -7,6 +7,8 @@ import logging.config
 import signal
 import sys
 
+from tornado.ioloop import IOLoop, PeriodicCallback
+
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.gi import GtkMainLoop
@@ -28,6 +30,8 @@ def try_exit(gtkloop, a2dp):
         logging.info("Gracefully stopped. Have a nice day.")
 
 def main():
+    args = sys.argv
+
     # process (CLI) args
     parser = argparse.ArgumentParser(
         prog="pytooth-test" if len(args) == 0 else args[0],

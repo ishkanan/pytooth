@@ -17,7 +17,7 @@ class AdvancedAudioProfile:
         system_bus = SystemBus()
 
         # create adapter
-        self.__adapter = adapter_class(system_bus, *args, **kwargs)
+        self.__adapter = adapter_class(system_bus=system_bus, *args, **kwargs)
         self.__adapter.on_connected_changed = \
             self.__adapter_connected_changed
         self.__adapter.on_properties_changed = \

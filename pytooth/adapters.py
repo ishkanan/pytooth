@@ -146,12 +146,14 @@ class BaseAdapter:
                 logger.info("No suitable adapter is available.")
                 self._adapter_proxy = None
                 self._adapter_props_proxy = None
-            if is_found:
+            elif is_found:
                 logger.info("Adapter '{} - {}' is available.".format(
                     adapter.Name,
                     adapter.Address))
                 self._adapter_proxy = adapter[Bluez5Utils.ADAPTER_INTERFACE]
                 self._adapter_props_proxy = adapter
+            else:
+                logger.debug("No change in adapter status.")
             if (is_found or is_lost) and self.on_connected_changed is not None:
                 self._connected = is_found
                 self.io_loop.add_callback(
