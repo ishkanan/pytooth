@@ -6,7 +6,7 @@ import logging
 
 from gi.repository import GLib
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("gi")
 
 
 class GtkMainLoop:
