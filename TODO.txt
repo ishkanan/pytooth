@@ -1,0 +1,18 @@
+
+adapters.py
+
+hfp/
+
+    __init__.py:
+
+        HandsFreeProfile - main
+        - start()
+        - stop()
+
+a2dp/
+
+    __init__.py:
+
+        AdvancedAudioProfile - main
+        - start()
+        - stop()

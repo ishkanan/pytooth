@@ -1,0 +1,39 @@
+{
+    "logging": {
+        "version": 1,
+        "disable_existing_loggers": false,
+        "formatters": {
+            "simple": {
+                "class": "logging.Formatter",
+                "format": "%(asctime)s::%(levelname)s::%(module)s::%(funcName)s::%(message)s"
+            }
+        },
+
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": "DEBUG",
+                "formatter": "simple",
+                "stream": "ext://sys.stdout"
+            }
+        },
+
+        "loggers": {
+            "pytooth": {
+                "level": "DEBUG",
+                "handlers": ["console"],
+                "propagate": false
+            }
+        },
+
+        "root": {
+            "level": "DEBUG",
+            "handlers": ["console"]
+        }
+    },
+
+    "debug": 0,
+
+    "adapteraddress": ""
+
+}
