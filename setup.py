@@ -1,9 +1,12 @@
 """Setup definition."""
+
+import os
 import platform
 from setuptools import setup, find_packages
 
+
 def main():
-    """Main entry point."""
+    """Setup entry point."""
 
     # to get the long description
     with open('README.md') as f:
@@ -17,20 +20,33 @@ def main():
     with open('requirements_dev.txt') as f:
         test_requirements = f.read().split("\n")
 
-    # Windows doesn't need setproctitle because it will be built into an EXE anyway
+    # Windows doesn't need setproctitle as it will be built into an EXE anyway
     if platform.system() == 'Windows':
         install_requirements = [x for x in install_requirements \
                                 if not x.startswith('setproctitle')]
 
+    # do GObject install
+    os.system(
+        "cd packages/; "
+        "tar xf pygobject-3.22.0.tar.xz; "
+        "cd pygobject-3.22.0; "
+        "sed -i '13273s/${prefix}/\/home\/ishkanan\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '13275s/${exec_prefix}/\/home\/ishkanan\/.pyenv\/versions\/pytooth/' configure; "
+        "./configure; "
+        "make; "
+        "sudo make install; "
+        "cd ..; "
+        "sudo rm -Rf pygobject-3.22.0/")
+
     setup(
-        name="carputer",
+        name="pytooth",
         version="1.0.0",
-        description="Linux-based web app with features common to car headunits.",
+        description="Linux-only wrapper library of the Bluez5 stack.",
         long_description=long_description,
         author="Anthony Ishkan",
         author_email="anthony.ishkan@gmail.com",
-        url="https://bitbucket.org/ishkanan/carputer",
-        packages=find_packages(exclude=["carputer.tests"]),
+        url="https://bitbucket.org/ishkanan/pytooth",
+        packages=find_packages(exclude=["pytooth.tests"]),
         package_data={
             "": ["*.txt", "*.rst", "*.md"]
         },
@@ -39,9 +55,11 @@ def main():
         dependency_links=dependency_requirements,
         entry_points={
             "console_scripts": [
-                "carputer = carputer.main:main",
-                "carputer-gcal = carputer.gcal.main:main",
-            ]
+                "pytooth-test = pytooth.tests.main:main",
+            ],
+            "distutils.commands": [
+                "foo = mypackage.some_module:foo",
+            ],
         },
         zip_safe=False
     )

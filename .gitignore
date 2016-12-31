@@ -1,0 +1,9 @@
+syntax: glob
+.DS_Store
+.coverage
+*.pyc
+*.sublime-workspace
+__pycache__
+*.egg*
+build/*
+dist/*
