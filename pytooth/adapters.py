@@ -1,7 +1,6 @@
 """http://www.bluez.org/bluez-5-api-introduction-and-porting-guide/
 """
 
-from functools import partial
 import logging
 
 from pytooth.errors import CommandError, InvalidOperationError
@@ -16,10 +15,11 @@ class BaseAdapter:
     """
 
     def __init__(self, system_bus, io_loop, retry_interval, \
-        adapter_address=None):
+        preferred_address=None):
         
         # subclass-accessible
-        self._adapter_address = adapter_address
+        self._preferred_address = preferred_address
+        self._connected = False
         self._started = False
         
         # events
@@ -59,8 +59,32 @@ class BaseAdapter:
             return
 
         self._started = False
+        self._connected = False
         self._adapter_proxy = None
         self._adapter_props_proxy = None
+
+    @property
+    def address(self):
+        """Returns the address of the connected adapter (if any), or None if
+        no adapter is connected.
+        """
+        if self._adapter_props_proxy:
+            return self._adapter_props_proxy.Address
+        return None
+
+    @property
+    def connected(self):
+        return self._connected
+
+    @property
+    def dbus_path(self):
+        """Returns the DBus object path of the connected adapter (if any), or
+        None if no adapter is connected.
+        """
+        if self._adapter_props_proxy:
+            help(self._adapter_props_proxy)
+            return self._adapter_props_proxy.Path
+        return None
 
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.
@@ -107,11 +131,11 @@ class BaseAdapter:
         try:
             # get first or preferred BT adapter
             logger.debug("Checking for '{}' bluetooth adapter...".format(
-                self._adapter_address if self._adapter_address \
+                self._preferred_address if self._preferred_address \
                 else "first available"))
             adapter = Bluez5Utils.find_adapter(
                 bus=self._bus,
-                address=self._adapter_address)
+                address=self._preferred_address)
 
             # check adapter connection status
             is_found = adapter is not None and self._adapter_proxy is None
@@ -129,11 +153,10 @@ class BaseAdapter:
                 self._adapter_proxy = adapter[Bluez5Utils.ADAPTER_INTERFACE]
                 self._adapter_props_proxy = adapter
             if (is_found or is_lost) and self.on_connected_changed is not None:
+                self._connected = is_found
                 self.io_loop.add_callback(
-                    callback=partial(
-                        self.on_connected_changed,
-                        adapter_path=
-                        connected=s2))
+                    callback=self.on_connected_changed,
+                    adapter=self)
 
         except Exception as e:
             logger.exception("Failed to get suitable adapter.")
@@ -155,12 +178,15 @@ class BaseAdapter:
             return
         if params[0] != Bluez5Utils.ADAPTER_INTERFACE:
             return
-        
+        if object != self.dbus_path:
+            return
+
         logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
             object, iface, signal, params))
 
         if self.on_properties_changed is not None:
             self.on_properties_changed(
+                adapter=self,
                 props=params[1])
 
 
@@ -168,12 +194,11 @@ class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
     """
 
-    def __init__(self, system_bus, io_loop, retry_interval, \
-        adapter_address=None):
-        super().__init__(system_bus, io_loop, retry_interval, \
-            adapter_address)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         
         # disable requirement for PIN when pairing
-        self._agentmgr_proxy = Bluez5Utils.get_agentmanager(bus=system_bus)
+        self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
+            bus=kwargs["system_bus"])
         self._agentmgr_proxy.RegisterAgent("/org/bluez", "NoInputNoOutput")
 
