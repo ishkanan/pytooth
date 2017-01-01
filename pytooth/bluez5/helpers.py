@@ -9,6 +9,7 @@ class Bluez5Utils:
     AGENT_MANAGER_INTERFACE = "org.bluez.AgentManager1"
     DEVICE_INTERFACE = "org.bluez.Device1"
     MEDIA_INTERFACE = "org.bluez.Media1"
+    MEDIA_TRANSPORT_INTERFACE = "org.bluez.MediaTransport1"
 
     OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager"
     PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
@@ -53,18 +54,32 @@ class Bluez5Utils:
 
     @staticmethod
     def get_objectmanager(bus):
-        return bus.get(
+        o = bus.get(
             Bluez5Utils.SERVICE_NAME,
             "/")[Bluez5Utils.OBJECT_MANAGER_INTERFACE]
+        o.path = "/"
+        return o
 
     @staticmethod
     def get_agentmanager(bus):
-        return bus.get(
+        o = bus.get(
             Bluez5Utils.SERVICE_NAME,
             "/org/bluez")[Bluez5Utils.AGENT_MANAGER_INTERFACE]
+        o.path = "/org/bluez"
+        return o
 
     @staticmethod
     def get_media(bus, adapter_path):
-        return bus.get(
+        o = bus.get(
             Bluez5Utils.SERVICE_NAME,
             adapter_path)[Bluez5Utils.MEDIA_INTERFACE]
+        o.path = adapter_path
+        return o
+
+    @staticmethod
+    def get_media_transport(bus, transport_path):
+        o = bus.get(
+            Bluez5Utils.SERVICE_NAME,
+            transport_path)[Bluez5Utils.MEDIA_TRANSPORT_INTERFACE]
+        o.path = transport_path
+        return o
