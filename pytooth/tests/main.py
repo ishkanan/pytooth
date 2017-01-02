@@ -26,9 +26,19 @@ def signal_handler(signum, frame):
 def try_exit(gtkloop, a2dp):
     global _closing
     if _closing:
+        try:
+            a2dp.set_discoverable(enabled=False)
+            a2dp.set_pairable(enabled=False)
+        except Exception:
+            logging.exception("")
         a2dp.stop()
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")
+
+def adapter_connected_changed(adapter):
+    if adapter.connected:
+        adapter.set_discoverable(enabled=True)
+        adapter.set_pairable(enabled=True)
 
 def main():
     args = sys.argv
@@ -70,6 +80,7 @@ def main():
         preferred_address=config["preferredaddress"],
         retry_interval=config["retryinterval"],
         io_loop=IOLoop.instance())
+    a2dp.on_adapter_connected_changed = adapter_connected_changed
 
     # run the test app
     logging.info("Running...")
