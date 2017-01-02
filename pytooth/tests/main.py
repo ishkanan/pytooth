@@ -9,6 +9,7 @@ import sys
 
 from tornado.ioloop import IOLoop, PeriodicCallback
 
+import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.gi import GtkMainLoop
@@ -59,8 +60,12 @@ def main():
             print("WARNING! Could not parse logging configuration, logging may "
                 "not be configured properly - {}".format(e))
 
+    # init
+    bus = pytooth.init()
+
     # A2DP
     a2dp = AdvancedAudioProfile(
+        system_bus=bus,
         adapter_class=OpenPairableAdapter,
         preferred_address=config["preferredaddress"],
         retry_interval=config["retryinterval"],

@@ -10,7 +10,7 @@ def init():
     """Performs important initial functions. Must be called before any other
     method in this library.
     """
-    def name_acquired(*args, **kwargs):
+    def name_aquired(*args, **kwargs):
         logger.debug("Name acquired - args={}, kwargs={}".format(args, kwargs))
     
     def name_lost(*args, **kwargs):
@@ -19,6 +19,6 @@ def init():
     bus = SystemBus()
     bus.own_name(
         name="local.pytooth",
-        name_acquired=name_acquired,
+        name_aquired=name_aquired,
         name_lost=name_lost)
     return bus

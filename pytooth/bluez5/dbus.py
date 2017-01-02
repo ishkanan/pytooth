@@ -4,6 +4,7 @@ https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 
 import logging
 
+from gi.repository.GLib import Variant
 from pydbus.generic import signal
 
 from pytooth.bluez5.helpers import Bluez5Utils
@@ -12,6 +13,31 @@ from pytooth.errors import InvalidOperationError
 logger = logging.getLogger(__name__)
 
 
+class Media:
+    """Encapsulates a Media bluez5 object.
+    """
+
+    def __init__(self, system_bus, adapter_path):
+        self._media_proxy = Bluez5Utils.get_media(
+            bus=system_bus,
+            adapter_path=adapter_path)
+
+    def register(self, dbus_path, uuid, codec, capabilities):
+        """Registers our capabilities with bluez5.
+        """
+        self._media_proxy.RegisterEndpoint(
+            dbus_path,
+            {
+                "UUID": Variant("s", uuid),
+                "Codec": Variant("y", codec),
+                "Capabilities": Variant("ay", capabilities)
+            })
+
+    def unregister(self, dbus_path):
+        """Unregisters our capabilities with bluez5.
+        """
+        self._media_proxy.UnregisterEndpoint(dbus_path)
+
 class MediaEndpoint:
     """Encapsulates a MediaEndpoint bluez5 object.
     """
@@ -19,15 +45,15 @@ class MediaEndpoint:
     <node>
       <interface name='org.bluez.MediaEndpoint1'>
         <method name='SetConfiguration'>
-          <arg type='s' name='transport' direction='in'/>
-          <arg type='a{so}' name='properties' direction='in'/>
+          <arg type='o' name='transport' direction='in'/>
+          <arg type='a{sv}' name='properties' direction='in'/>
         </method>
         <method name='SelectConfiguration'>
           <arg type='ab' name='capabilities' direction='in'/>
           <arg type='ab' name='response' direction='out'/>
         </method>
         <method name='ClearConfiguration'>
-          <arg type='s' name='transport' direction='in'/>
+          <arg type='o' name='transport' direction='in'/>
         </method>
         <method name='Release'>
         </method>
@@ -37,11 +63,27 @@ class MediaEndpoint:
 
     def __init__(self, system_bus, configuration):
         self._configuration = configuration # desired
+        self._register_context = None
         self._system_bus = system_bus
 
         self.on_release = None
         self.on_setup_error = None
         self.on_transport_state_changed = None
+
+    def register(self, dbus_path):
+        """A helper method to register the endpoint on DBus.
+        """
+        self._register_context = self._system_bus.register_object(
+            path=dbus_path,
+            object=self,
+            node_info=None)
+
+    def unregister(self):
+        """A helper method to unregister the endpoint on DBus.
+        """
+        if self._register_context:
+            self._register_context.unregister()
+            self._register_context = None
 
     def SetConfiguration(self, transport, properties):
         """Invoked by bluez5 when the transport configuration has been set.

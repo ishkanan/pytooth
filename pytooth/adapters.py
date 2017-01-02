@@ -77,13 +77,12 @@ class BaseAdapter:
         return self._connected
 
     @property
-    def dbus_path(self):
+    def path(self):
         """Returns the DBus object path of the connected adapter (if any), or
         None if no adapter is connected.
         """
         if self._adapter_props_proxy:
-            help(self._adapter_props_proxy)
-            return self._adapter_props_proxy.Path
+            return self._adapter_props_proxy.path
         return None
 
     def set_discoverable(self, enabled, timeout=None):
@@ -180,7 +179,7 @@ class BaseAdapter:
             return
         if params[0] != Bluez5Utils.ADAPTER_INTERFACE:
             return
-        if object != self.dbus_path:
+        if object != self.path:
             return
 
         logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(

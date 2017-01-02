@@ -46,9 +46,11 @@ class Bluez5Utils:
                 continue
             
             if not address or address.upper() == adapter["Address"].upper():
-                return bus.get(
+                o = bus.get(
                     Bluez5Utils.SERVICE_NAME,
                     path)
+                o.path = path
+                return o
 
         return None
 

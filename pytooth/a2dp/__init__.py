@@ -3,8 +3,7 @@ import logging
 
 from pytooth.a2dp.constants import A2DP_SINK_UUID, MP3_CAPABILITIES, \
                                     MP3_CODEC, MP3_CONFIGURATION
-from pytooth.bluez5.dbus import MediaEndpoint
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.dbus import Media, MediaEndpoint
 
 logger = logging.getLogger("a2dp")
 
@@ -36,7 +35,6 @@ class AdvancedAudioProfile:
         # DBus
         self._media = None
         self._media_endpoint = None
-        self._media_endpoint_ctxt = None
 
         # other
         self._started = False
@@ -58,7 +56,10 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.stop()
-        self._unregister_media()
+        try:
+            self._unregister_media()
+        except Exception:
+            logger.exception("Failed to unregister endpoint.")
         self._started = False
 
     def _adapter_connected_changed(self, adapter):
@@ -75,42 +76,6 @@ class AdvancedAudioProfile:
         if self.on_adapter_connected_changed:
             self.on_adapter_connected_changed(adapter=adapter)
 
-    def _register_media(self, adapter):
-        # build endpoint and register on DBus
-        logger.debug("Building media endpoint...")
-        self._media_endpoint = MediaEndpoint(
-            system_bus=self._system_bus,
-            configuration=MP3_CONFIGURATION)
-        logger.debug("Registering media endpoint on DBus...")
-        self._media_endpoint_ctxt = self._system_bus.register_object(
-            path="/endpoints/a2dp",
-            object=self._media_endpoint)
-
-        # get Media proxy and register endpoint with bluez
-        logger.debug("Fetching Media proxy...")
-        self._media = Bluez5Utils.get_media(
-            bus=self._system_bus,
-            adapter_path=adapter.path)
-        logger.debug("Registering media endpoint on bluez...")
-        self._media.RegisterEndpoint(
-            "/endpoints/a2dp",
-            {
-                "UUID" : A2DP_SINK_UUID,
-                "Codec" : MP3_CODEC,
-                "Capabilities" : MP3_CAPABILITIES
-            })
-        logger.debug("Registered and ready.")
-
-    def _unregister_media(self):
-        # unregister endpoint
-        if self._media:
-            logger.debug("Unregistering media endpoint...")
-            self._media.UnregisterEndpoint("/endpoints/a2dp")
-            self._media_endpoint_ctxt.unregister()
-            self._media_endpoint = None
-            self._media = None
-            logger.debug("Unregistered media endpoint.")
-
     def _adapter_properties_changed(self, adapter, props):
         """Adapter properties changed.
         """
@@ -121,6 +86,42 @@ class AdvancedAudioProfile:
         if self.on_adapter_properties_changed:
             self.on_adapter_properties_changed(adapter=adapter, props=props)
     
+    def _register_media(self, adapter):
+        # build endpoint and register on DBus
+        logger.debug("Building media endpoint...")
+        self._media_endpoint = MediaEndpoint(
+            system_bus=self._system_bus,
+            configuration=MP3_CONFIGURATION)
+        logger.debug("Registering media endpoint on DBus...")
+        self._media_endpoint.register(
+            dbus_path="/endpoints/a2dp")
+
+        # get Media proxy and register endpoint with bluez
+        logger.debug("Fetching Media proxy...")
+        self._media = Media(
+            system_bus=self._system_bus,
+            adapter_path=adapter.path)
+        # logger.debug(self._system_bus.get(
+        #     Bluez5Utils.SERVICE_NAME,
+        #     adapter.path).Introspect())
+        logger.debug("Registering media capabilities with bluez...")
+        self._media.register(
+            dbus_path="/endpoints/a2dp",
+            uuid=A2DP_SINK_UUID,
+            codec=MP3_CODEC,
+            capabilities=MP3_CAPABILITIES)
+        logger.debug("Registered and ready.")
+
+    def _unregister_media(self):
+        # unregister endpoint
+        if self._media:
+            logger.debug("Unregistering media objects...")
+            self._media.unregister("/endpoints/a2dp")
+            self._media_endpoint.unregister()
+            self._media_endpoint = None
+            self._media = None
+            logger.debug("Unregistered media objects.")
+
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.
         Timeout is in seconds, or pass None for no timeout.
