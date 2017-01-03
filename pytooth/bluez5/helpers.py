@@ -10,6 +10,7 @@ class Bluez5Utils:
     DEVICE_INTERFACE = "org.bluez.Device1"
     MEDIA_INTERFACE = "org.bluez.Media1"
     MEDIA_TRANSPORT_INTERFACE = "org.bluez.MediaTransport1"
+    PROFILE_MANAGER_INTERFACE = "org.bluez.ProfileManager1"
 
     OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager"
     PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
@@ -84,4 +85,12 @@ class Bluez5Utils:
             Bluez5Utils.SERVICE_NAME,
             transport_path)[Bluez5Utils.MEDIA_TRANSPORT_INTERFACE]
         o.path = transport_path
+        return o
+
+    @staticmethod
+    def get_profilemanager(bus):
+        o = bus.get(
+            Bluez5Utils.SERVICE_NAME,
+            "/org/bluez")[Bluez5Utils.PROFILE_MANAGER_INTERFACE]
+        o.path = "/org/bluez"
         return o

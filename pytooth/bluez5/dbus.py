@@ -3,9 +3,9 @@ https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 """
 
 import logging
+import os
 
 from gi.repository.GLib import Variant
-from pydbus.generic import signal
 
 from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.errors import InvalidOperationError
@@ -67,7 +67,7 @@ class MediaEndpoint:
         self._system_bus = system_bus
 
         self.on_release = None
-        self.on_setup_error = None
+        self.on_transport_setup_error = None
         self.on_transport_state_changed = None
 
     def register(self, dbus_path):
@@ -93,14 +93,14 @@ class MediaEndpoint:
 
         # build media transport
         try:
-            mt = MediaTransport(transport=Bluez5Utils.get_media_transport(
-                bus=self.system_bus,
-                transport_path=transport))
+            mt = MediaTransport(
+                transport=Bluez5Utils.get_media_transport(
+                    bus=self.system_bus,
+                    transport_path=transport))
         except Exception as ex:
             logger.exception("Error fetching media transport.")
-            if self.on_setup_error:
-                self.on_setup_error("Error fetching media transport - {}"
-                    "".format(ex))
+            if self.on_transport_setup_error:
+                self.on_transport_setup_error(ex)
             return
 
         # hand out
@@ -166,10 +166,8 @@ class MediaTransport:
     def acquire(self):
         """Acquires the transport OS socket from bluez5.
         """
-        if self._acquired:
-            raise InvalidOperationError("Already acquired.")
-        if self._released:
-            raise InvalidOperationError("Already released.")
+        if self._acquired or self._released:
+            return
 
         logger.debug("Going to acquire OS socket for transport - {}".format(
             self._transport.path))
@@ -181,10 +179,8 @@ class MediaTransport:
         """Releases the transport OS socket. Should be called
         as soon as playback is stopped.
         """
-        if not self._acquired:
-            raise InvalidOperationError("Not acquired.")
-        if self._released:
-            raise InvalidOperationError("Already released.")
+        if not self._acquired or self._released:
+            return
 
         logger.debug("Going to release OS socket for transport - {}".format(
             self._transport.path))
@@ -201,3 +197,71 @@ class MediaTransport:
     def __unicode__(self):
         return self.transport
 
+class Profile:
+    """Encapsulates a Profile bluez5 object.
+    """
+    dbus = """
+    <node>
+      <interface name='org.bluez.Profile1'>
+        <method name='Release'>
+        </method>
+        <method name='NewConnection'>
+          <arg type='o' name='device' direction='in'/>
+          <arg type='v' name='fd' direction='in'/>
+          <arg type='a{sv}' name='fd_properties' direction='in'/>
+        </method>
+        <method name='RequestDisconnection'>
+          <arg type='o' name='device' direction='in'/>
+        </method>
+      </interface>
+    </node>
+    """
+
+    def __init__(self):
+        self._fds = {} # device: [fd]
+
+        self.on_connect = None
+        self.on_disconnect = None
+        self.on_release = None
+
+    def Release(self):
+        """Called when bluez5 unregisters the profile.
+        """
+        logger.debug("Bluez5 has unregistered the profile.")
+        
+        if self.on_release:
+            self.on_release()
+
+    def NewConnection(self, device, fd, fd_properties):
+        """Called when a new service-level connection has been established.
+        """
+        logger.debug("New service-level connection - device={}, fd={}, fd_"
+            "properties={}".format(device, fd, fd_properties))
+        
+        # track new socket for later cleanup
+        fds = self._fds.get(device, [])
+        fds.append(fd)
+        self._fds.update({device: fds})
+        
+        if self.on_connect:
+            self.on_connect(
+                device=device,
+                fd=fd,
+                fd_properties=fd_properties)
+
+    def RequestDisconnection(self, device):
+        """Called when profile is disconnected from device.
+        """
+        logger.debug("Profile connections to device {} have been closed.".format(
+            device))
+        
+        # need to close each socket to the device
+        for fd in self._fds.pop(device, []):
+            try:
+                os.close(fd)
+            except Exception:
+                logger.exception("Unable to close fd {}.".format(fd))
+        
+        if self.on_disconnect:
+            self.on_disconnect(
+                device=device)
