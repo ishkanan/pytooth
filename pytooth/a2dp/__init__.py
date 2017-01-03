@@ -56,7 +56,6 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.start()
-        self._profilemgr.start()
         self._started = True
 
     def stop(self):
@@ -74,6 +73,9 @@ class AdvancedAudioProfile:
         """
         if adapter.connected:
             logger.info("Adapter '{}' has connected.".format(adapter.address))
+            
+            # start profile now after org name has been registered on DBus
+            self._profilemgr.start()
             try:
                 self._mediamgr.start(adapter=adapter)
             except Exception:

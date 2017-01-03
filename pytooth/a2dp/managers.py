@@ -4,7 +4,9 @@
 from functools import partial
 import logging
 
-from pytooth.a2dp.constants import A2DP_PROFILE_UUID,
+from gi.repository.GLib import Variant
+
+from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     A2DP_SINK_UUID, \
                                     A2DP_DBUS_PROFILE_ENDPOINT, \
                                     A2DP_DBUS_MEDIA_ENDPOINT, \
@@ -65,6 +67,7 @@ class ProfileManager:
         self._profile.on_disconnect = self._profile_on_disconnect
         self._profile.on_release = self._profile_on_release
 
+        logger.debug("Registering A2DP profile on DBus...")
         self._register_context = self._system_bus.register_object(
             path=A2DP_DBUS_PROFILE_ENDPOINT,
             object=self._profile,
@@ -73,13 +76,14 @@ class ProfileManager:
             A2DP_DBUS_PROFILE_ENDPOINT,
             A2DP_PROFILE_UUID,
             {
-                "Name": "pytooth A2DP",
-                "Service": A2DP_SINK_UUID,
-                "RequireAuthentication": True,
-                "RequireAuthorization": False,
+                "Name": Variant("s", "pytooth A2DP"),
+                "Service": Variant("s", A2DP_SINK_UUID),
+                "RequireAuthentication": Variant("b", True),
+                "RequireAuthorization": Variant("b", False),
                 #"Version": 0,
                 #"Features": 0
             })
+        logger.debug("Registered A2DP profile on DBus.")
 
     def _unregister(self):
         """Unregisters the profile endpoint on DBus.
@@ -128,6 +132,7 @@ class MediaManager:
     def __init__(self, system_bus):
         # handle connections via multiple adapters
         self._connections = {} # adapter: {media, endpoint}
+        self._system_bus = system_bus
 
         # events
         self.on_unexpected_release = None
@@ -217,7 +222,7 @@ class MediaManager:
             adapter)
         logger.debug("Registering media endpoint on DBus...")
         dbus_path = "{}_{}".format(
-            A2DP_DBUS_MEDIA_ENDPOINT
+            A2DP_DBUS_MEDIA_ENDPOINT,
             MediaManager._endpoint_id)
         endpoint.register(dbus_path)
 
