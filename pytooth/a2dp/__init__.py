@@ -1,6 +1,7 @@
 
 import logging
 
+from pytooth.a2dp.managers import MediaManager, ProfileManager
 from pytooth.bluez5.helpers import Bluez5Utils
 
 logger = logging.getLogger("a2dp")
@@ -16,15 +17,30 @@ class AdvancedAudioProfile:
     def __init__(self, system_bus, adapter_class, *args, **kwargs):
         self._system_bus = system_bus
 
-        # create adapter
+        # adapter
         self._adapter = adapter_class(
             system_bus=self._system_bus,
             *args,
             **kwargs)
-        self._adapter.on_connected_changed = \
-            self._adapter_connected_changed
-        self._adapter.on_properties_changed = \
-            self._adapter_properties_changed
+        self._adapter.on_connected_changed = self._adapter_connected_changed
+        self._adapter.on_properties_changed = self._adapter_properties_changed
+
+        # profile plumber
+        self._profilemgr = ProfileManager(
+            system_bus=system_bus)
+        self._profilemgr.on_connect = self._profile_connect
+        self._profilemgr.on_disconnect = self._profile_disconnect
+        self._profilemgr.on_unexpected_stop = self._profile_unexpected_stop
+
+        # media plumber
+        self._mediamgr = MediaManager(
+            system_bus=self._system_bus)
+        self._mediamgr.on_unexpected_release = \
+            self._media_unexpected_release
+        self._mediamgr.on_transport_connect = \
+            self._media_transport_connect
+        self._mediamgr.on_transport_disconnect = \
+            self._media_transport_disconnect
 
         # public events
         self.on_adapter_connected_changed = None
@@ -32,7 +48,6 @@ class AdvancedAudioProfile:
 
         # other
         self._started = False
-        self.io_loop = kwargs["io_loop"]
 
     def start(self):
         """Starts the profile. If already started, this does nothing.
@@ -41,6 +56,7 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.start()
+        self._profilemgr.start()
         self._started = True
 
     def stop(self):
@@ -50,10 +66,7 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.stop()
-        try:
-            self._unregister_media()
-        except Exception:
-            logger.exception("Failed to unregister endpoint.")
+        self._profilemgr.stop()
         self._started = False
 
     def _adapter_connected_changed(self, adapter):
@@ -61,10 +74,16 @@ class AdvancedAudioProfile:
         """
         if adapter.connected:
             logger.info("Adapter '{}' has connected.".format(adapter.address))
-            self._register_media(adapter=adapter)
+            try:
+                self._mediamgr.start(adapter=adapter)
+            except Exception:
+                logging.exception("Error establishing media connection.")
         else:
             logger.info("Adapter disconnected.")
-            self._unregister_media(adapter=adapter)
+            try:
+                self._mediamgr.stop(adapter=adapter)
+            except Exception:
+                logging.exception("Error releasing media connection.")
 
         # pass up
         if self.on_adapter_connected_changed:
@@ -79,6 +98,40 @@ class AdvancedAudioProfile:
 
         if self.on_adapter_properties_changed:
             self.on_adapter_properties_changed(adapter=adapter, props=props)
+
+    def _profile_connect(self, device, fd, fd_properties):
+        """New service-level connection has been established.
+        """
+        logger.debug("Device connected.")
+
+    def _profile_disconnect(self, device):
+        """Device is disconnected from profile.
+        """
+        logger.debug("Device disconnected.")
+
+    def _profile_unexpected_stop(self):
+        """Profile was unregistered without our knowledge.
+        """
+        logger.debug("Profile unexpectedly unregistered.")
+        self._profilemgr.start()
+
+    def _media_unexpected_release(self, adapter):
+        """Unexpected endpoint release.
+        """
+        logger.debug("Media endpoint unexpectedly released on adapter {}."
+            "".format(adapter))
+
+    def _media_transport_connect(self, adapter, transport):
+        """Media streaming path available. Does not imply streaming has started.
+        """
+        logger.debug("Media streaing path is available on adapter {}.".format(
+            adapter))
+
+    def _media_transport_disconnect(self):
+        """Media streaming path released.
+        """
+        logger.debug("Media streaming path is release on adapter {}.".format(
+            adapter))
 
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.

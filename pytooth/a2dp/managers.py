@@ -105,7 +105,7 @@ class ProfileManager:
                 fd_properties=fd_properties)
 
     def _profile_on_disconnect(self, device):
-        """Profile is disconnected from device.
+        """Device is disconnected from profile.
         """
         if self.on_disconnect:
             self.on_disconnect(
@@ -130,9 +130,9 @@ class MediaManager:
         self._connections = {} # adapter: {media, endpoint}
 
         # events
-        self.on_media_release = None
-        self.on_media_transport_connect = None
-        self.on_media_transport_disconnect = None
+        self.on_unexpected_release = None
+        self.on_transport_connect = None
+        self.on_transport_disconnect = None
 
         # subscribe to property changes
         system_bus.subscribe(
@@ -263,8 +263,8 @@ class MediaManager:
         unexpected = adapter in self._connections
         self._connections.pop(adapter, {})
 
-        if unexpected and self.on_media_release:
-            self.on_media_release(adapter=adapter)
+        if unexpected and self.on_unexpected_release:
+            self.on_unexpected_release(adapter=adapter)
 
     def _endpoint_transport_setup_error(self, adapter, error):
         """Media transport setup error.
@@ -279,9 +279,9 @@ class MediaManager:
         
         if state == "available":
             # TODO: figure out how to store based on streaming transition
-            # ilogic, no idea how to detect yet...
-            if self.on_media_transport_connect:
-                self.on_media_transport_connect(
+            # logic, no idea how to detect yet...
+            if self.on_transport_connect:
+                self.on_transport_connect(
                     adapter=adapter,
                     transport=transport)
         elif state == "released":
@@ -290,7 +290,7 @@ class MediaManager:
                 transport.release()
             except Exception:
                 logger.exception("Error releasing transport.")
-            if self.on_media_transport_disconnect:
-                self.on_media_transport_disconnect(
+            if self.on_transport_disconnect:
+                self.on_transport_disconnect(
                     adapter=adapter,
                     transport=transport)
