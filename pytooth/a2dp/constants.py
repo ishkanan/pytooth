@@ -1,10 +1,13 @@
 
+from pytooth.constants import DBUS_BASE_PATH
+
+
 A2DP_PROFILE_UUID = "0000110d-0000-1000-8000-00805f9b34fb"
 A2DP_SOURCE_UUID = "0000110a-0000-1000-8000-00805f9b34fb"
 A2DP_SINK_UUID = "0000110b-0000-1000-8000-00805f9b34fb"
 
-A2DP_DBUS_MEDIA_ENDPOINT = "/dishpan/pytooth/endpoints/a2dp"
-A2DP_DBUS_PROFILE_ENDPOINT = "/dishpan/pytooth/profiles/a2dp"
+A2DP_DBUS_MEDIA_ENDPOINT = DBUS_BASE_PATH+"/endpoints/a2dp"
+A2DP_DBUS_PROFILE_ENDPOINT = DBUS_BASE_PATH+"/profiles/a2dp"
 
 SBC_CODEC = b'\x00'
 #Channel Modes: Mono DualChannel Stereo JointStereo

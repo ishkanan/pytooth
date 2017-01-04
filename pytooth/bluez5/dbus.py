@@ -63,6 +63,7 @@ class MediaEndpoint:
 
     def __init__(self, system_bus, configuration):
         self._configuration = configuration # desired
+        self._transport = None
         self._register_context = None
         self._system_bus = system_bus
 
@@ -93,9 +94,9 @@ class MediaEndpoint:
 
         # build media transport
         try:
-            mt = MediaTransport(
+            self._transport = MediaTransport(
                 transport=Bluez5Utils.get_media_transport(
-                    bus=self.system_bus,
+                    bus=self._system_bus,
                     transport_path=transport))
         except Exception as ex:
             logger.exception("Error fetching media transport.")
@@ -106,7 +107,7 @@ class MediaEndpoint:
         # hand out
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
-                transport=mt,
+                transport=self._transport,
                 state="available")
 
     def SelectConfiguration(self, capabilities):
@@ -123,8 +124,9 @@ class MediaEndpoint:
             "".format(transport))
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
-                transport=transport,
+                transport=self._transport,
                 state="released")
+            self._transport = None
 
     def Release(self):
         """Invoked when bluez5 shuts down.
@@ -189,13 +191,13 @@ class MediaTransport:
         self._released = True
 
     def __repr__(self):
-        return self.transport
+        return "<MediaTransport: "+self._transport.path+">"
 
     def __str__(self):
-        return self.transport
+        return "<MediaTransport: "+self._transport.path+">"
 
     def __unicode__(self):
-        return self.transport
+        return "<MediaTransport: "+self._transport.path+">"
 
 class Profile:
     """Encapsulates a Profile bluez5 object.

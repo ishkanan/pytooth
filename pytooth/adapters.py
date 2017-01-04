@@ -5,6 +5,7 @@ import logging
 
 from pytooth.agents import NoInputNoOutputAgent
 from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.constants import DBUS_AGENT_PATH
 from pytooth.errors import CommandError, InvalidOperationError
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,6 @@ class BaseAdapter:
                 adapter=self,
                 props=params[1])
 
-
 class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
     """
@@ -206,22 +206,25 @@ class OpenPairableAdapter(BaseAdapter):
         self._agent = NoInputNoOutputAgent()
         self._agent.on_release = self._on_agent_release
         self._register_context = self._system_bus.register_object(
-            path="/dishpan/pytooth/agent",
+            path=DBUS_AGENT_PATH,
             object=self._agent,
             node_info=None)
 
         # register it
         self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
             bus=self._system_bus)
-        self.io_loop.call_later(
-            delay=3,
-            callback=self._register_agent)
+        self._register_agent()
 
     def _register_agent(self):
+        """Registers the agent.
+        """
         self._agentmgr_proxy.RegisterAgent(
-            "/dishpan/pytooth/agent",
+            DBUS_AGENT_PATH,
             "NoInputNoOutput")
         logger.debug("Agent registered.")
+        self._agentmgr_proxy.RequestDefaultAgent(
+            DBUS_AGENT_PATH)
+        logger.debug("We are now the default agent.")
 
     def _on_agent_release(self):
         """Called when bluez5 has unregistered the agent.
@@ -231,3 +234,15 @@ class OpenPairableAdapter(BaseAdapter):
         self.io_loop.call_later(
             delay=15,
             callback=self._register_agent)
+
+    def __repr__(self):
+        return "<OpenPairableAdapter: {}>".format(
+            self.path if self.path else "N/A")
+
+    def __str__(self):
+        return "<OpenPairableAdapter: {}>".format(
+            self.path if self.path else "N/A")
+
+    def __unicode__(self):
+        return "<OpenPairableAdapter: {}>".format(
+            self.path if self.path else "N/A")

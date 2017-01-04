@@ -10,9 +10,9 @@ from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     A2DP_SINK_UUID, \
                                     A2DP_DBUS_PROFILE_ENDPOINT, \
                                     A2DP_DBUS_MEDIA_ENDPOINT, \
-                                    MP3_CAPABILITIES, \
-                                    MP3_CODEC, \
-                                    MP3_CONFIGURATION
+                                    SBC_CAPABILITIES, \
+                                    SBC_CODEC, \
+                                    SBC_CONFIGURATION
 from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
 from pytooth.bluez5.helpers import Bluez5Utils
 
@@ -77,12 +77,8 @@ class ProfileManager:
             A2DP_PROFILE_UUID,
             {
                 "Name": Variant("s", "AdvancedAudioDistribution"),
-                "Role": Variant("s", "SNK"),
-                "Service": Variant("s", A2DP_SINK_UUID),
                 "RequireAuthentication": Variant("b", True),
                 "RequireAuthorization": Variant("b", False),
-                #"Version": 0,
-                #"Features": 0
             })
         logger.debug("Registered A2DP profile on DBus.")
 
@@ -211,7 +207,7 @@ class MediaManager:
         logger.debug("Building media endpoint...")
         endpoint = MediaEndpoint(
             system_bus=self._system_bus,
-            configuration=MP3_CONFIGURATION)
+            configuration=SBC_CONFIGURATION)
         endpoint.on_release = partial(
             self._endpoint_release,
             adapter)
@@ -233,8 +229,8 @@ class MediaManager:
             media.register(
                 dbus_path=dbus_path,
                 uuid=A2DP_SINK_UUID,
-                codec=MP3_CODEC,
-                capabilities=MP3_CAPABILITIES)
+                codec=SBC_CODEC,
+                capabilities=SBC_CAPABILITIES)
         except Exception:
             logger.exception("Error registering capabilities.")
             endpoint.unregister()
@@ -282,7 +278,7 @@ class MediaManager:
         """
         logger.debug("Media transport {} for adapter {} is {}.".format(
             transport, adapter, state))
-        
+
         if state == "available":
             # TODO: figure out how to store based on streaming transition
             # logic, no idea how to detect yet...

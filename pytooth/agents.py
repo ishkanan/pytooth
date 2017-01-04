@@ -59,7 +59,6 @@ class NoInputNoOutputAgent:
 
     def AuthorizeService(self, device, uuid):
         logger.debug("NINO: AuthorizeService {}, {}".format(device, uuid))
-        return
 
     def RequestPinCode(self, device):
         logger.debug("NINO: RequestPinCode {}".format(device))
@@ -78,11 +77,9 @@ class NoInputNoOutputAgent:
 
     def RequestConfirmation(self, device, passkey):
         logger.debug("NINO: RequestConfirmation {}, {}".format(device, passkey))
-        return
 
     def RequestAuthorization(self, device):
         logger.debug("NINO: RequestAuthorization {}".format(device))
-        return
 
     def Cancel(self):
         logger.debug("NINO: Cancelled.")
