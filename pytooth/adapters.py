@@ -3,8 +3,9 @@
 
 import logging
 
-from pytooth.errors import CommandError, InvalidOperationError
+from pytooth.agents import NoInputNoOutputAgent
 from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.errors import CommandError, InvalidOperationError
 
 logger = logging.getLogger(__name__)
 
@@ -195,11 +196,38 @@ class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, system_bus, io_loop, *args, **kwargs):
+        super().__init__(system_bus, io_loop, *args, **kwargs)
         
-        # disable requirement for PIN when pairing
-        self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
-            bus=kwargs["system_bus"])
-        self._agentmgr_proxy.RegisterAgent("/org/bluez", "NoInputNoOutput")
+        self._system_bus = system_bus
+        self.io_loop = io_loop
 
+        # build agent
+        self._agent = NoInputNoOutputAgent()
+        self._agent.on_release = self._on_agent_release
+        self._register_context = self._system_bus.register_object(
+            path="/dishpan/pytooth/agent",
+            object=self._agent,
+            node_info=None)
+
+        # register it
+        self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
+            bus=self._system_bus)
+        self.io_loop.call_later(
+            delay=3,
+            callback=self._register_agent)
+
+    def _register_agent(self):
+        self._agentmgr_proxy.RegisterAgent(
+            "/dishpan/pytooth/agent",
+            "NoInputNoOutput")
+        logger.debug("Agent registered.")
+
+    def _on_agent_release(self):
+        """Called when bluez5 has unregistered the agent.
+        """
+        logger.debug("Agent was unregistered. Attempting to re-register in 15 "
+            "seconds...")
+        self.io_loop.call_later(
+            delay=15,
+            callback=self._register_agent)
