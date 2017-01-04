@@ -207,7 +207,7 @@ class Profile:
         </method>
         <method name='NewConnection'>
           <arg type='o' name='device' direction='in'/>
-          <arg type='v' name='fd' direction='in'/>
+          <arg type='h' name='fd' direction='in'/>
           <arg type='a{sv}' name='fd_properties' direction='in'/>
         </method>
         <method name='RequestDisconnection'>

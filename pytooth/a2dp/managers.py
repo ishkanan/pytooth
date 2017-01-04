@@ -76,7 +76,8 @@ class ProfileManager:
             A2DP_DBUS_PROFILE_ENDPOINT,
             A2DP_PROFILE_UUID,
             {
-                "Name": Variant("s", "pytooth A2DP"),
+                "Name": Variant("s", "AdvancedAudioDistribution"),
+                "Role": Variant("s", "SNK"),
                 "Service": Variant("s", A2DP_SINK_UUID),
                 "RequireAuthentication": Variant("b", True),
                 "RequireAuthorization": Variant("b", False),

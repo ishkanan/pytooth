@@ -30,7 +30,7 @@ def try_exit(gtkloop, a2dp):
             a2dp.set_discoverable(enabled=False)
             a2dp.set_pairable(enabled=False)
         except Exception:
-            logging.exception("")
+            logging.exception("Error resetting disc/pair.")
         a2dp.stop()
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")

@@ -18,7 +18,7 @@ def init():
     
     bus = SystemBus()
     bus.own_name(
-        name="local.pytooth",
+        name="dishpan.pytooth",
         name_aquired=name_aquired,
         name_lost=name_lost)
     return bus

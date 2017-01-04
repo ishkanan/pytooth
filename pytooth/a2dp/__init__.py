@@ -14,12 +14,13 @@ class AdvancedAudioProfile:
     http://www.lightofdawn.org/wiki/wiki.cgi/BluezA2DP
     """
 
-    def __init__(self, system_bus, adapter_class, *args, **kwargs):
+    def __init__(self, system_bus, adapter_class, io_loop, *args, **kwargs):
         self._system_bus = system_bus
 
         # adapter
         self._adapter = adapter_class(
             system_bus=self._system_bus,
+            io_loop=io_loop,
             *args,
             **kwargs)
         self._adapter.on_connected_changed = self._adapter_connected_changed
@@ -47,6 +48,7 @@ class AdvancedAudioProfile:
         self.on_adapter_properties_changed = None
 
         # other
+        self.io_loop = io_loop
         self._started = False
 
     def start(self):
@@ -114,8 +116,11 @@ class AdvancedAudioProfile:
     def _profile_unexpected_stop(self):
         """Profile was unregistered without our knowledge.
         """
-        logger.debug("Profile unexpectedly unregistered.")
-        self._profilemgr.start()
+        logger.debug("Profile unexpectedly unregistered. Attempting re-register"
+            " in 15 seconds...")
+        self.io_loop.call_later(
+            delay=15,
+            callback=self._profilemgr.start)
 
     def _media_unexpected_release(self, adapter):
         """Unexpected endpoint release.
