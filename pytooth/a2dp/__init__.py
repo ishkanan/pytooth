@@ -131,7 +131,7 @@ class AdvancedAudioProfile:
     def _media_transport_connect(self, adapter, transport):
         """Media streaming path available. Does not imply streaming has started.
         """
-        logger.debug("Media streaing path is available on adapter {}.".format(
+        logger.debug("Media streaming path is available on adapter {}.".format(
             adapter))
 
     def _media_transport_disconnect(self):

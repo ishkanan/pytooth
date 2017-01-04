@@ -132,16 +132,17 @@ class MediaManager:
         self._system_bus = system_bus
 
         # events
-        self.on_unexpected_release = None
+        self.on_streaming_state_changed = None
         self.on_transport_connect = None
         self.on_transport_disconnect = None
+        self.on_unexpected_release = None
 
         # subscribe to property changes
         system_bus.subscribe(
             iface=Bluez5Utils.PROPERTIES_INTERFACE,
             signal="PropertiesChanged",
-            arg0=Bluez5Utils.MEDIA_INTERFACE,
-            signal_fired=self._media_properties_changed)
+            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
+            signal_fired=self._player_properties_changed)
 
     def start(self, adapter):
         """Starts a media connection via specified adapter. If already started,
@@ -154,7 +155,8 @@ class MediaManager:
         self._connections.update({
             adapter: {
                 "media": media,
-                "endpoint": endpoint
+                "endpoint": endpoint,
+                "transport": None
             }})
 
     def stop(self, adapter):
@@ -167,31 +169,65 @@ class MediaManager:
         self._unregister(adapter)
         self._connections.pop(adapter)
 
-    def _media_properties_changed(self, sender, object, iface, signal, params):
+    def _player_properties_changed(self, sender, object, iface, signal, params):
         """Fired by the system bus subscription when a Bluez5 object property
         changes. 
         e.g.
-            object=/org/bluez/hci0/dev_BC_F5_AC_81_D0_9E
+            object=/org/bluez/hci0/dev_BC_F5_AC_81_D0_9E/player0
             iface=org.freedesktop.DBus.Properties
             signal=PropertiesChanged
-            params=('org.bluez.Device1', {'Connected': True}, [])
+            params=('org.bluez.MediaPlayer1', {'Status': 'paused'}, [])
         """
-        if not self._started:
+
+        # ignore regular "position" updates
+        if len(params[1]) == 1 and "Position" in params[1]:
             return
-        if params[0] != Bluez5Utils.MEDIA_INTERFACE:
-            return
-        
+
         logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
             object, iface, signal, params))
 
-        # # acquire from bluez5
-        # try:
-        #     mt.acquire()
-        # except Exception:
-        #     logger.exception("Error acquiring media transport.")
-        #     if self.on_media_setup_error:
-        #         self.on_media_setup_error("Error acquiring media transport.")
-        #     return
+        # get adapter object so we have access to endpoint and transport
+        adapter_path = "/org/bluez/"+object.split("/")[3]
+        adapter = None
+        for k, v in self._connections.items():
+            if k.path == adapter_path:
+                adapter = k
+        if adapter is None:
+            logger.debug("Adapter not tracked, ignoring signal.")
+            return
+        transport = self._connections[adapter]["transport"]
+
+        # only care about stream status updates
+        if params[1].get("Status") == "playing":
+            args = {
+                "method": transport.acquire,
+                "error": "Error starting media transport.",
+                "state": "started"
+            }
+        elif params[1].get("Status") in ["paused", "stopped"]:
+            # initial status can be stopped so no need to release transport
+            if transport is None:
+                return
+            args = {
+                "method": transport.release,
+                "error": "Error stopping media transport.",
+                "state": "stopped"
+            }
+        else:
+            return
+
+        try:
+            args["method"]()
+        except Exception:
+            logger.exception(args["error"])
+            if self.on_media_setup_error:
+                self.on_media_setup_error(args["error"])
+            return
+        if self.on_streaming_state_changed:
+            self.on_streaming_state_changed(
+                adapter=adapter,
+                transport=transport,
+                state=args["state"])
 
     def _register(self, adapter):
         """Registers a media endpoint on DBus.
@@ -280,14 +316,12 @@ class MediaManager:
             transport, adapter, state))
 
         if state == "available":
-            # TODO: figure out how to store based on streaming transition
-            # logic, no idea how to detect yet...
+            self._connections[adapter]["transport"] = transport
             if self.on_transport_connect:
                 self.on_transport_connect(
                     adapter=adapter,
                     transport=transport)
         elif state == "released":
-            # TODO: forget
             try:
                 transport.release()
             except Exception:

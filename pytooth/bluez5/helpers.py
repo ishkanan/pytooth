@@ -9,6 +9,7 @@ class Bluez5Utils:
     AGENT_MANAGER_INTERFACE = "org.bluez.AgentManager1"
     DEVICE_INTERFACE = "org.bluez.Device1"
     MEDIA_INTERFACE = "org.bluez.Media1"
+    MEDIA_PLAYER_INTERFACE = "org.bluez.MediaPlayer1"
     MEDIA_TRANSPORT_INTERFACE = "org.bluez.MediaTransport1"
     PROFILE_MANAGER_INTERFACE = "org.bluez.ProfileManager1"
 
