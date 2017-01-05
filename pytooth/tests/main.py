@@ -13,11 +13,13 @@ import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.gi import GtkMainLoop
+from pytooth.tests.sink import StreamSink
 import pytooth.tests.config
 from pytooth.tests.errors import ConfigurationError
 
 
 _closing = False
+_sink = None
 
 def signal_handler(signum, frame):
     global _closing
@@ -39,6 +41,19 @@ def adapter_connected_changed(adapter):
     if adapter.connected:
         adapter.set_discoverable(enabled=True)
         adapter.set_pairable(enabled=True)
+
+def streaming_state_changed(adapter, transport, state):
+    global _sink
+
+    if state == "stopped":
+        if _sink:
+            _sink.close()
+        _sink = None
+        logging.debug("Destroyed sink.")
+
+    if state == "started" and _sink is None:
+        logging.debug("Built new sink.")
+        _sink = StreamSink(fd=transport.fd)
 
 def main():
     args = sys.argv
@@ -81,6 +96,7 @@ def main():
         retry_interval=config["retryinterval"],
         io_loop=IOLoop.instance())
     a2dp.on_adapter_connected_changed = adapter_connected_changed
+    a2dp.on_streaming_state_changed = streaming_state_changed
 
     # run the test app
     logging.info("Running...")

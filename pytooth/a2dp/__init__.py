@@ -36,6 +36,8 @@ class AdvancedAudioProfile:
         # media plumber
         self._mediamgr = MediaManager(
             system_bus=self._system_bus)
+        self._mediamgr.on_streaming_state_changed = \
+            self._streaming_state_changed
         self._mediamgr.on_unexpected_release = \
             self._media_unexpected_release
         self._mediamgr.on_transport_connect = \
@@ -46,6 +48,9 @@ class AdvancedAudioProfile:
         # public events
         self.on_adapter_connected_changed = None
         self.on_adapter_properties_changed = None
+        self.on_media_transport_connect = None
+        self.on_media_transport_disconnect = None
+        self.on_streaming_state_changed = None
 
         # other
         self.io_loop = io_loop
@@ -131,14 +136,36 @@ class AdvancedAudioProfile:
     def _media_transport_connect(self, adapter, transport):
         """Media streaming path available. Does not imply streaming has started.
         """
-        logger.debug("Media streaming path is available on adapter {}.".format(
-            adapter))
+        logger.debug("Media streaming path {} is available on adapter {}."
+            "".format(transport, adapter))
 
-    def _media_transport_disconnect(self):
+        if self.on_media_transport_connect:
+            self.on_media_transport_connect(
+                adapter=adapter,
+                transport=transport)
+
+    def _media_transport_disconnect(self, adapter, transport):
         """Media streaming path released.
         """
-        logger.debug("Media streaming path is release on adapter {}.".format(
-            adapter))
+        logger.debug("Media streaming path {} is released on adapter {}."
+            "".format(transport, adapter))
+
+        if self.on_media_transport_disconnect:
+            self.on_media_transport_disconnect(
+                adapter=adapter,
+                transport=transport)
+
+    def _streaming_state_changed(self, adapter, transport, state):
+        """Streaming state has changed.
+        """
+        logger.debug("Media streaming state for adapter {} is now {}.".format(
+            adapter, state))
+
+        if self.on_streaming_state_changed:
+            self.on_streaming_state_changed(
+                adapter=adapter,
+                transport=transport,
+                state=state)
 
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.

@@ -212,18 +212,13 @@ class MediaManager:
         transport = context["transport"]
 
         # decide what to do
-        if prev_status in [None, "stopped"] and status == "playing":
-            # acquire if streaming started from stopped/unknown state
+        if not transport.acquired and status == "playing":
             args = {
                 "method": transport.acquire,
                 "error": "Error starting media transport.",
                 "state": "started"
             }
-        elif prev_status is None and status == "stopped":
-            # initial status can be stopped, no need to release transport
-            return
-        elif status == "stopped":
-            # release the transport
+        elif transport.acquired and status == "stopped":
             args = {
                 "method": transport.release,
                 "error": "Error stopping media transport.",
@@ -334,7 +329,6 @@ class MediaManager:
             transport, adapter, state))
 
         if state == "available":
-            help(transport._transport)
             self._connections[adapter]["transport"] = transport
             if self.on_transport_connect:
                 self.on_transport_connect(

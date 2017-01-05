@@ -148,6 +148,14 @@ class MediaTransport:
         self._write_mtu = None
 
     @property
+    def acquired(self):
+        return self._acquired
+
+    @property
+    def released(self):
+        return self._released
+        
+    @property
     def fd(self):
         return self._fd
 
