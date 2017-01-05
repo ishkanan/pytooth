@@ -22,6 +22,7 @@ class BaseAdapter:
         # subclass-accessible
         self._preferred_address = preferred_address
         self._connected = False
+        self._known_adapters = []
         self._started = False
         
         # events
@@ -61,6 +62,7 @@ class BaseAdapter:
             return
 
         self._started = False
+        self._known_adapters = []
         self._connected = False
         self._adapter_proxy = None
         self._adapter_props_proxy = None
@@ -76,6 +78,8 @@ class BaseAdapter:
 
     @property
     def connected(self):
+        """Returns True if desired adapter is connected.
+        """
         return self._connected
 
     @property
@@ -121,8 +125,7 @@ class BaseAdapter:
 
     def _check_adapter_available(self):
         """Attempts to get the specified adapter proxy object. This is called
-        repeatedly as there's no way to be notified by DBus of adapter
-        connection/disconnection.
+        repeatedly as it's the most reliable detection method.
         """
 
         # break out of potentially infinite check loop
@@ -130,13 +133,21 @@ class BaseAdapter:
             return
 
         try:
-            # get first or preferred BT adapter
             logger.debug("Checking for '{}' bluetooth adapter...".format(
                 self._preferred_address if self._preferred_address \
                 else "first available"))
-            adapter = Bluez5Utils.find_adapter(
-                bus=self._bus,
-                address=self._preferred_address)
+
+            # get first or preferred BT adapter
+            if len(self._known_adapters) == 0:
+                # this will kick-start the property change signals
+                adapter = Bluez5Utils.find_adapter(
+                    bus=self._bus,
+                    address=self._preferred_address)
+            else:
+                adapter = Bluez5Utils.find_adapter_from_paths(
+                    bus=self._bus,
+                    paths=self._known_adapters,
+                    address=self._preferred_address)
 
             # check adapter connection status
             is_found = adapter is not None and self._adapter_proxy is None
@@ -155,7 +166,7 @@ class BaseAdapter:
                 self._adapter_props_proxy = adapter
             else:
                 logger.debug("No change in adapter status.")
-            if (is_found or is_lost) and self.on_connected_changed is not None:
+            if (is_found or is_lost) and self.on_connected_changed:
                 self._connected = is_found
                 self.io_loop.add_callback(
                     callback=self.on_connected_changed,
@@ -172,25 +183,30 @@ class BaseAdapter:
         """Fired by the system bus subscription when a Bluez5 object property
         changes. 
         e.g.
-            object=/org/bluez/hci0/dev_BC_F5_AC_81_D0_9E
+            object=/org/bluez/hci0
             iface=org.freedesktop.DBus.Properties
             signal=PropertiesChanged
-            params=('org.bluez.Device1', {'Connected': True}, [])
+            params=('org.bluez.Adapter1', {'Connected': True}, [])
         """
         if not self._started:
-            return
-        if params[0] != Bluez5Utils.ADAPTER_INTERFACE:
-            return
-        if object != self.path:
             return
 
         logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
             object, iface, signal, params))
 
-        if self.on_properties_changed is not None:
-            self.on_properties_changed(
-                adapter=self,
-                props=params[1])
+        # make it known to check it later
+        if object not in self._known_adapters:
+            logger.debug("Remembering adapter {} for later polling.".format(
+                object))
+            self._known_adapters.append(object)
+
+        # pass DBus property proxy to event handler if the adapter is the one
+        # we want to use
+        if object == self.path:
+            if self.on_properties_changed:
+                self.on_properties_changed(
+                    adapter=self,
+                    props=params[1])
 
 class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.

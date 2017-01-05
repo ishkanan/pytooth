@@ -29,18 +29,7 @@ class Bluez5Utils:
         Returns first found adapter if address is None, or None if no adapters
         are present.
         """
-        return Bluez5Utils.__find_adapter_in_objects(
-            objects=Bluez5Utils.get_managed_objects(bus),
-            bus=bus,
-            address=address
-        )
-
-    @staticmethod
-    def __find_adapter_in_objects(objects, bus, address=None):
-        """Finds an adapter with matching address (if present), or None.
-        Returns first found adapter if address is None, or None if no adapters
-        are present.
-        """
+        objects = Bluez5Utils.get_managed_objects(bus)
         for path, obj in objects.items():
             try:
                 adapter = obj[Bluez5Utils.ADAPTER_INTERFACE]
@@ -48,11 +37,25 @@ class Bluez5Utils:
                 continue
             
             if not address or address.upper() == adapter["Address"].upper():
-                o = bus.get(
-                    Bluez5Utils.SERVICE_NAME,
-                    path)
-                o.path = path
-                return o
+                return Bluez5Utils.get_adapter_with_props(
+                    bus=bus,
+                    adapter_path=path)
+
+        return None
+
+    @staticmethod
+    def find_adapter_from_paths(bus, paths, address=None):
+        """Finds an adapter with matching address (if present) from the list of
+        given adapters, or None. Returns first found adapter if address is None,
+        or None if no adapters are present.
+        """
+        for path in paths:
+            obj = Bluez5Utils.get_adapter_with_props(
+                bus=bus,
+                adapter_path=path)
+            
+            if not address or address.upper() == obj.Address.upper():
+                return obj
 
         return None
 
@@ -70,6 +73,14 @@ class Bluez5Utils:
             Bluez5Utils.SERVICE_NAME,
             "/org/bluez")[Bluez5Utils.AGENT_MANAGER_INTERFACE]
         o.path = "/org/bluez"
+        return o
+
+    @staticmethod
+    def get_adapter_with_props(bus, adapter_path):
+        o = bus.get(
+            Bluez5Utils.SERVICE_NAME,
+            adapter_path)
+        o.path = adapter_path
         return o
 
     @staticmethod
