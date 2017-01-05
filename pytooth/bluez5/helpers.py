@@ -92,10 +92,10 @@ class Bluez5Utils:
         return o
 
     @staticmethod
-    def get_media_transport(bus, transport_path):
+    def get_media_transport_with_props(bus, transport_path):
         o = bus.get(
             Bluez5Utils.SERVICE_NAME,
-            transport_path)[Bluez5Utils.MEDIA_TRANSPORT_INTERFACE]
+            transport_path)
         o.path = transport_path
         return o
 

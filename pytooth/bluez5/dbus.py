@@ -2,6 +2,8 @@
 https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 """
 
+import dbus # pydbus does not translate file descriptors properly
+            # see MediaTransport.acquire()
 import logging
 import os
 
@@ -95,9 +97,8 @@ class MediaEndpoint:
         # build media transport
         try:
             self._transport = MediaTransport(
-                transport=Bluez5Utils.get_media_transport(
-                    bus=self._system_bus,
-                    transport_path=transport))
+                system_bus=self._system_bus,
+                transport_path=transport)
         except Exception as ex:
             logger.exception("Error fetching media transport.")
             if self.on_transport_setup_error:
@@ -138,11 +139,27 @@ class MediaTransport:
     """Encapsulates a bluez5 MediaTransport object.
     """
 
-    def __init__(self, transport):
-        self._acquired = False
-        self._released = False
-        self._transport = transport
+    def __init__(self, system_bus, transport_path):
+        self._system_bus = system_bus
+        self._system_bus_acquire = dbus.SystemBus()
 
+        # get a proxy object for the Acquire() method
+        # as pydbus does not translate file descriptors properly
+        self._transport_acquire = dbus.Interface(
+            self._system_bus_acquire.get_object(
+                Bluez5Utils.SERVICE_NAME,
+                transport_path),
+            Bluez5Utils.MEDIA_TRANSPORT_INTERFACE)
+
+        # get proxy objects for the other stuff
+        self._transport_props = Bluez5Utils.get_media_transport_with_props(
+            bus=self._system_bus,
+            transport_path=transport_path)
+        self._transport = self._transport_props[
+            Bluez5Utils.MEDIA_TRANSPORT_INTERFACE]
+        
+        # other state
+        self._acquired = False
         self._fd = None
         self._read_mtu = None
         self._write_mtu = None
@@ -151,10 +168,6 @@ class MediaTransport:
     def acquired(self):
         return self._acquired
 
-    @property
-    def released(self):
-        return self._released
-        
     @property
     def fd(self):
         return self._fd
@@ -171,41 +184,31 @@ class MediaTransport:
     def transport(self):
         """Returns the DBus object. Should only be used to access properties.
         """
-        return self._transport
+        return self._transport_props
 
     def acquire(self):
         """Acquires the transport OS socket from bluez5.
         """
-        if self._acquired or self._released:
+        if self._acquired:
             return
 
         logger.debug("Going to acquire OS socket for transport - {}".format(
-            self._transport.path))
-        self._fd, self._read_mtu, self._write_mtu = self._transport.Acquire()
-        logger.debug("Successfully acquired OS socket.")
+            self._transport_props.path))
+        self._fd, self._read_mtu, self._write_mtu = \
+            self._transport_acquire.TryAcquire()
+        self._fd = self._fd.take()
+        logger.debug("Successfully acquired OS socket - fd={}, readMTU={}, "
+            "writeMTU={}".format(self._fd, self._read_mtu, self._write_mtu))
         self._acquired = True
 
-    def release(self):
-        """Releases the transport OS socket. Should be called
-        as soon as playback is stopped.
-        """
-        if not self._acquired or self._released:
-            return
-
-        logger.debug("Going to release OS socket for transport - {}".format(
-            self._transport.path))
-        self._transport.Release()
-        logger.debug("Successfully released OS socket.")
-        self._released = True
-
     def __repr__(self):
-        return "<MediaTransport: "+self._transport.path+">"
+        return "<MediaTransport: "+self._transport_props.path+">"
 
     def __str__(self):
-        return "<MediaTransport: "+self._transport.path+">"
+        return "<MediaTransport: "+self._transport_props.path+">"
 
     def __unicode__(self):
-        return "<MediaTransport: "+self._transport.path+">"
+        return "<MediaTransport: "+self._transport_props.path+">"
 
 class Profile:
     """Encapsulates a Profile bluez5 object.

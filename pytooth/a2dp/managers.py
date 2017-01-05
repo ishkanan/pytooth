@@ -211,36 +211,23 @@ class MediaManager:
         context["streamstatus"] = status
         transport = context["transport"]
 
-        # decide what to do
+        # acquire the transport to begin receiving data?
+        # note: we don't manually release it, that is done via a remote device
+        #       disconnect event
         if not transport.acquired and status == "playing":
-            args = {
-                "method": transport.acquire,
-                "error": "Error starting media transport.",
-                "state": "started"
-            }
-        elif transport.acquired and status == "stopped":
-            args = {
-                "method": transport.release,
-                "error": "Error stopping media transport.",
-                "state": "stopped"
-            }
-        else:
-            # no need for action
-            return
-
-        # action!
-        try:
-            args["method"]()
-        except Exception:
-            logger.exception(args["error"])
-            if self.on_media_setup_error:
-                self.on_media_setup_error(args["error"])
-            return
+            try:
+                transport.acquire()
+            except Exception:
+                logger.exception(args["error"])
+                if self.on_media_setup_error:
+                    self.on_media_setup_error(args["error"])
+        
+        # state update
         if self.on_streaming_state_changed:
             self.on_streaming_state_changed(
                 adapter=adapter,
                 transport=transport,
-                state=args["state"])
+                state=status)
 
     def _register(self, adapter):
         """Registers a media endpoint on DBus.
@@ -335,10 +322,6 @@ class MediaManager:
                     adapter=adapter,
                     transport=transport)
         elif state == "released":
-            try:
-                transport.release()
-            except Exception:
-                logger.exception("Error releasing transport.")
             if self.on_transport_disconnect:
                 self.on_transport_disconnect(
                     adapter=adapter,

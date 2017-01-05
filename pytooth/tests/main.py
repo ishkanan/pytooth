@@ -45,15 +45,19 @@ def adapter_connected_changed(adapter):
 def streaming_state_changed(adapter, transport, state):
     global _sink
 
-    if state == "stopped":
-        if _sink:
-            _sink.close()
-        _sink = None
-        logging.debug("Destroyed sink.")
-
-    if state == "started" and _sink is None:
+    if state == "playing" and _sink is None:
+        _sink = StreamSink(
+            transport=transport,
+            io_loop=IOLoop.instance())
         logging.debug("Built new sink.")
-        _sink = StreamSink(fd=transport.fd)
+
+def media_transport_disconnect(adapter, transport):
+    global _sink
+
+    if _sink:
+        _sink.close()
+    _sink = None
+    logging.debug("Destroyed sink.")
 
 def main():
     args = sys.argv
@@ -97,6 +101,7 @@ def main():
         io_loop=IOLoop.instance())
     a2dp.on_adapter_connected_changed = adapter_connected_changed
     a2dp.on_streaming_state_changed = streaming_state_changed
+    a2dp.on_media_transport_disconnect = media_transport_disconnect
 
     # run the test app
     logging.info("Running...")
