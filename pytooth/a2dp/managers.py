@@ -156,6 +156,7 @@ class MediaManager:
             adapter: {
                 "media": media,
                 "endpoint": endpoint,
+                "streamstatus": None,
                 "transport": None
             }})
 
@@ -179,14 +180,14 @@ class MediaManager:
             params=('org.bluez.MediaPlayer1', {'Status': 'paused'}, [])
         """
 
-        # ignore regular "position" updates
+        # ignore the frequent single "position" updates
         if len(params[1]) == 1 and "Position" in params[1]:
             return
 
         logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
             object, iface, signal, params))
 
-        # get adapter object so we have access to endpoint and transport
+        # get adapter object for access to context
         adapter_path = "/org/bluez/"+object.split("/")[3]
         adapter = None
         for k, v in self._connections.items():
@@ -195,27 +196,44 @@ class MediaManager:
         if adapter is None:
             logger.debug("Adapter not tracked, ignoring signal.")
             return
-        transport = self._connections[adapter]["transport"]
 
-        # only care about stream status updates
-        if params[1].get("Status") == "playing":
+        # streaming status update
+        if "Status" in params[1]:
+            self._update_stream_status(
+                adapter=adapter,
+                status=params[1]["Status"])
+
+    def _update_stream_status(self, adapter, status):
+        """Performs actions based on newly-received streaming status.
+        """
+        context = self._connections[adapter]
+        prev_status = context["streamstatus"]
+        context["streamstatus"] = status
+        transport = context["transport"]
+
+        # decide what to do
+        if prev_status in [None, "stopped"] and status == "playing":
+            # acquire if streaming started from stopped/unknown state
             args = {
                 "method": transport.acquire,
                 "error": "Error starting media transport.",
                 "state": "started"
             }
-        elif params[1].get("Status") in ["paused", "stopped"]:
-            # initial status can be stopped so no need to release transport
-            if transport is None:
-                return
+        elif prev_status is None and status == "stopped":
+            # initial status can be stopped, no need to release transport
+            return
+        elif status == "stopped":
+            # release the transport
             args = {
                 "method": transport.release,
                 "error": "Error stopping media transport.",
                 "state": "stopped"
             }
         else:
+            # no need for action
             return
 
+        # action!
         try:
             args["method"]()
         except Exception:
@@ -316,6 +334,7 @@ class MediaManager:
             transport, adapter, state))
 
         if state == "available":
+            help(transport._transport)
             self._connections[adapter]["transport"] = transport
             if self.on_transport_connect:
                 self.on_transport_connect(
