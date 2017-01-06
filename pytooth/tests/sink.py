@@ -19,8 +19,15 @@ class StreamSink:
             streaming_callback=self._data_ready)
 
     def _data_ready(self, data):
-        logger.debug("Got {} bytes of data from socket.".format(
-            len(data)))
+        if len(data) <= 0:
+            return
+
+        # find SBC syncword of packet
+        i = data.index(b'\x9c')
+        if i < 0:
+            return
+
+        # decode data[i:]
 
     def close(self):
         self._stream.close()
