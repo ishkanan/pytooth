@@ -26,8 +26,12 @@ def signal_handler(signum, frame):
     _closing = True
 
 def try_exit(gtkloop, a2dp):
-    global _closing
+    global _closing, _sink
+
     if _closing:
+        if _sink:
+            _sink.close()
+            logging.debug("Destroyed sink.")
         try:
             a2dp.set_discoverable(enabled=False)
             a2dp.set_pairable(enabled=False)
