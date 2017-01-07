@@ -31,10 +31,10 @@ class FileSBCSink:
 
         self._file = wave.open(self._filename, 'wb')
         self._wav_header_set = False
+        self._started = True
         self._decoder.start(
             fd=self._transport.fd,
             read_mtu=self._transport.read_mtu)
-        self._started = True
 
     def stop(self):
         """Stops the sink. If already stopped, this does nothing.
@@ -62,13 +62,14 @@ class FileSBCSink:
         for i in range(0, len(data), n):
             # 1, 2 or 4 bytes
             if n == 1:
-                b = struct.pack("<B", data[i])
+                frame = struct.pack("=B", data[i])
             elif n == 2:
-                b = struct.pack("<BB", data[i], data[i+1])
+                frame = struct.pack("=H", (data[i+1] << 8) + data[i])
             elif n == 4:
-                b = struct.pack("<BBBB",
-                    data[i], data[i+1], data[i+2], data[i+3])
-            self._file.writeframes(b)
+                frame = struct.pack("=HH",
+                    (data[i+1] << 8) + data[i],
+                    (data[i+3] << 8) + data[i+2])
+            self._file.writeframes(frame)
 
     def _wav_params_ready(self):
         """Called when WAV header parameters have been determined.
@@ -90,4 +91,4 @@ class FileSBCSink:
         self._wav_header_set = True
 
     def _unhandled_decoder_error(self, error):
-        logger.critical("Unhandled decoder error - {}".format(e))
+        logger.critical("Unhandled decoder error - {}".format(error))

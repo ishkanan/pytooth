@@ -120,7 +120,7 @@ class SBCDecoder:
         return None
 
     def _do_decode(self):
-        # run the thread in a try/catch just in case something goes wrong
+        # run the decoder in a try/catch just in case something goes wrong
         try:
             self._worker_proc()
         except Exception as e:
@@ -134,43 +134,67 @@ class SBCDecoder:
             self._libsbc.sbc_finish(ct.byref(self._sbc), 0)
 
     def _worker_proc(self):
-        # create read buffer
+        """Does the decoding of SBC samples to WAV samples. Runs in an infinite
+        loop until stopped.
+        """
+
+        # initialise
         bufsize = self._read_mtu
         buf = ct.create_string_buffer(bufsize)
-        
         self._libsbc.sbc_init(ct.byref(self._sbc), 0)
+        prev_seq = 0
+        remainder = b''
 
         # loop until stopped
         while self._started:
-            logger.debug("self._started = {}".format(self._started))
 
             # read more RTP data
             try:
-                data = self._socket.recv(bufsize)
-                logger.debug("Got {} bytes to decode.".format(len(data)))
+                data = self._socket.recv(bufsize, socket.MSG_WAITALL)
             except Exception as e:
                 logger.error("Socket read error - {}".format(e))
                 # socket may have closed, up to stop() to be called
-                data = ""
-            if len(data) <= 0:
-                sleep(1)    # don't consume 100% of CPU
+                data = b''
+                sleep(0.5)    # don't consume 100% of CPU
+            if len(data) == 0:
                 continue
 
-            # crudely strip RTP
-            data = data[13:] # RTP header (12) + RTP payload (1)
+            # out-of-order packet?
+            # note: we need to allow for 16-bit reset
+            seq = data[2] + (data[3] << 8)
+            if seq < prev_seq and prev_seq - seq <= 50:
+                logger.debug("Skipping old packet - prev={}, seq={}".format(
+                    prev_seq, seq))
+                continue
+            prev_seq = seq
+
+            # strip RTP padding
+            has_padding = bool((data[0] & 0x04) >> 2)
+            if has_padding:
+                num_pad_bytes = data[-1]
+                logger.debug("Stripping {} RTP pad bytes.".format(
+                    num_pad_bytes))
+                data = data[:-num_pad_bytes]
+            
+            # strip RTP
+            data = remainder + data[13:] # RTP header (12) + RTP payload (1)
+            #logger.debug("Got {} bytes to decode.".format(len(data)))
             buf.value = data
             readlen = len(data)
-            
+                
             # create decode buffer if we haven't already
             if not self._sbc_populated:
                 self._populate_sbct(data=data)
-                logger.debug("sbc: fr={},bl={},sb={},m=o{},al={},bp={}".format(
-                    self._sbc.frequency,
-                    self._sbc.blocks,
-                    self._sbc.subbands,
-                    self._sbc.mode,
-                    self._sbc.allocation,
-                    self._sbc.bitpool))
+                logger.debug("sbc: fr={},bl={},sb={},mo={},al={},bp={}"
+                    ",fl={},en={}".format(
+                        self._sbc.frequency,
+                        self._sbc.blocks,
+                        self._sbc.subbands,
+                        self._sbc.mode,
+                        self._sbc.allocation,
+                        self._sbc.bitpool,
+                        self._sbc.flags,
+                        self._sbc.endian))
                 if self.on_wav_params_ready:
                     self.on_wav_params_ready()
                 decode_bufsize = \
@@ -185,6 +209,7 @@ class SBCDecoder:
             to_write = ct.c_size_t(decode_bufsize)
 
             # decode loop
+            total_decoded = 0
             written = ct.c_size_t()
             total_written = 0
             while to_decode.value > 0:
@@ -202,18 +227,22 @@ class SBCDecoder:
                     logger.debug("SBC decoding error - decoded={}".format(
                         decoded))
                     break # make do with what we have
-
-                logger.debug("Decoded {} bytes.".format(decoded))
-
+                
                 # update buffer pointers / counters
                 buf_p.value += decoded
                 to_decode.value -= decoded
+                total_decoded += decoded
                 decbuf_p.value += written.value
                 to_write.value -= written.value
                 total_written += written.value
-        
+            
+            # not all bytes may have been decoded
+            #logger.debug("Decoded total {} bytes.".format(total_decoded))
+            remainder = data[total_decoded+1:]
+            if len(remainder) > 0:
+                logger.debug("Remainder bytes = {}".format(remainder))
+
             # hand over decoded data
-            logger.debug("Total decoded {} bytes.".format(total_written))
             if self.on_data_ready:
                 self.on_data_ready(
                     data=decode_buf.raw[0:total_written])
@@ -223,16 +252,15 @@ class SBCDecoder:
         SBC-encoded payload.
         """
         if data[0] != 0x9c:
-            raise TypeError("Not SBC-encoded payload.")
+            logger.warning("Not SBC-encoded payload.")
+            return
 
         # refer to official A2DP specification
-        self._sbc.flags = 0
         self._sbc.frequency = (data[1] & 0xc0) >> 6
         self._sbc.blocks = (data[1] & 0x30) >> 4
         self._sbc.subbands = data[1] & 0x01
         self._sbc.mode = (data[1] & 0x0c) >> 2
         self._sbc.allocation = (data[1] & 0x02) >> 1
         self._sbc.bitpool = data[2]
-        self._sbc.endian = 0
 
         self._sbc_populated = True
