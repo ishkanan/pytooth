@@ -13,7 +13,7 @@ import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.gi import GtkMainLoop
-from pytooth.tests.sink import StreamSink
+from pytooth.a2dp.sinks import FileSBCSink
 import pytooth.tests.config
 from pytooth.tests.errors import ConfigurationError
 
@@ -30,7 +30,7 @@ def try_exit(gtkloop, a2dp):
 
     if _closing:
         if _sink:
-            _sink.close()
+            _sink.stop()
             logging.debug("Destroyed sink.")
         try:
             a2dp.set_discoverable(enabled=False)
@@ -50,16 +50,17 @@ def streaming_state_changed(adapter, transport, state):
     global _sink
 
     if state == "playing" and _sink is None:
-        _sink = StreamSink(
+        _sink = FileSBCSink(
             transport=transport,
-            io_loop=IOLoop.instance())
+            filename="/home/vagrant/test.wav")
+        _sink.start()
         logging.debug("Built new sink.")
 
 def media_transport_disconnect(adapter, transport):
     global _sink
 
     if _sink:
-        _sink.close()
+        _sink.stop()
     _sink = None
     logging.debug("Destroyed sink.")
 
