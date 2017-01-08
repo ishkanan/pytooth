@@ -27,7 +27,7 @@ class GtkMainLoop:
             return
 
         self.__started = True
-        GLib.timeout_add(50, self.__ioloop_run)
+        GLib.timeout_add(75, self.__ioloop_run)
         self.__gi_loop.run()
 
     def stop(self):

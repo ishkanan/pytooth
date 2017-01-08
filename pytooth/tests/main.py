@@ -13,7 +13,7 @@ import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.gi import GtkMainLoop
-from pytooth.a2dp.sinks import FileSBCSink
+from pytooth.a2dp.sinks import FileSBCSink, PortAudioSink
 import pytooth.tests.config
 from pytooth.tests.errors import ConfigurationError
 
@@ -50,9 +50,10 @@ def streaming_state_changed(adapter, transport, state):
     global _sink
 
     if state == "playing" and _sink is None:
-        _sink = FileSBCSink(
-            transport=transport,
-            filename="/home/vagrant/test.wav")
+        _sink = PortAudioSink(
+            card_name="pulse",
+            transport=transport)
+            #filename="/home/vagrant/test.wav")
         _sink.start()
         logging.debug("Built new sink.")
 

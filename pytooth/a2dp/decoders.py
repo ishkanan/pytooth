@@ -152,10 +152,11 @@ class SBCDecoder:
             try:
                 data = self._socket.recv(bufsize, socket.MSG_WAITALL)
             except Exception as e:
-                logger.error("Socket read error - {}".format(e))
-                # socket may have closed, up to stop() to be called
+                if "Errno 11" not in str(e):
+                    # socket may have closed, up to stop() to be called
+                    logger.error("Socket read error - {}".format(e))
                 data = b''
-                sleep(0.5)    # don't consume 100% of CPU
+                sleep(0.25)    # don't consume 100% of CPU
             if len(data) == 0:
                 continue
 
