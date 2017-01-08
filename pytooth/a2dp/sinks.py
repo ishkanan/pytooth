@@ -166,8 +166,8 @@ class PortAudioSink:
                 len(data)))
             return
 
-        # pack bytes according to WAV header
-        self._stream.write(data, exception_on_underflow=False)
+        # remember bytes to later submit to PortAudio
+        self._buffer += data
 
     def _wav_params_ready(self):
         """Called when WAV header parameters have been determined.
@@ -184,13 +184,15 @@ class PortAudioSink:
         fmt = self._player.get_format_from_width(
             int(self._decoder.samplesize/8))
         logger.debug("Format = {}".format(fmt))
+        self._frame_size = self._decoder.channels * int(self._decoder.samplesize/8)
+        self._underrun_frame = bytes(self._frame_size)
         self._stream = self._player.open(
             format=fmt,
             channels=self._decoder.channels,
             rate=self._decoder.samplerate,
             output=True,
             output_device_index=self._device_index,
-            stream_callback=None)
+            stream_callback=self._data_required)
 
         self._wav_header_set = True
 
@@ -199,3 +201,17 @@ class PortAudioSink:
         automatically stopped.
         """
         logger.critical("Unhandled decoder error - {}".format(error))
+
+    def _data_required(self, in_data, frame_count, time_info, status):
+        """Called when PortAudio needs more samples.
+        """
+
+        req_byte_count = self._frame_size * frame_count
+        if len(self._buffer) >= req_byte_count:
+            data = self._buffer[0:req_byte_count]
+            self._buffer = self._buffer[req_byte_count:]
+            #logger.debug("Giving decoded data - {}".format(len(data)))
+            return (data, pyaudio.paContinue)
+        else:
+            #logger.debug("Giving underrun data.")
+            return (self._underrun_frame * frame_count, pyaudio.paContinue)

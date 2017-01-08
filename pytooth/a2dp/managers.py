@@ -211,7 +211,7 @@ class MediaManager:
         context["streamstatus"] = status
         transport = context["transport"]
 
-        # acquire the transport to begin receiving data?
+        # acquire the transport to begin receiving data
         # note: we don't manually release it, that is done via a remote device
         #       disconnect event
         if not transport.acquired and status == "playing":
@@ -221,7 +221,11 @@ class MediaManager:
                 logger.exception(args["error"])
                 if self.on_media_setup_error:
                     self.on_media_setup_error(args["error"])
-        
+        elif status in ["paused", "stopped"]:
+            # bluez5 has taken back ownership of the transport
+            # dirty hack, but watevs...
+            transport._acquired = False
+
         # state update
         if self.on_streaming_state_changed:
             self.on_streaming_state_changed(

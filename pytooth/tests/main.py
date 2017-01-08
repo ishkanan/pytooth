@@ -53,7 +53,6 @@ def streaming_state_changed(adapter, transport, state):
         _sink = PortAudioSink(
             card_name="pulse",
             transport=transport)
-            #filename="/home/vagrant/test.wav")
         _sink.start()
         logging.debug("Built new sink.")
 
