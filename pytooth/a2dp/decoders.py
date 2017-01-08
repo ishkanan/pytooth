@@ -78,6 +78,7 @@ class SBCDecoder:
         self._sbc = sbc_t()
         self._sbc_populated = False
         self._socket = socket.socket(fileno=fd)
+        self._socket.setblocking(True)
         self._worker = Thread(
             target=self._do_decode,
             name="SBCDecoder",
@@ -143,7 +144,9 @@ class SBCDecoder:
         buf = ct.create_string_buffer(bufsize)
         self._libsbc.sbc_init(ct.byref(self._sbc), 0)
         prev_seq = 0
-        remainder = b''
+        to_decode = ct.c_size_t() # optimisation
+        to_write = ct.c_size_t() # optimisation
+        written = ct.c_size_t() # optimisation
 
         # loop until stopped
         while self._started:
@@ -152,9 +155,8 @@ class SBCDecoder:
             try:
                 data = self._socket.recv(bufsize, socket.MSG_WAITALL)
             except Exception as e:
-                if "Errno 11" not in str(e):
-                    # socket may have closed, up to stop() to be called
-                    logger.error("Socket read error - {}".format(e))
+                # socket may have closed, up to stop() to be called
+                logger.error("Socket read error - {}".format(e))
                 data = b''
                 sleep(0.25)    # don't consume 100% of CPU
             if len(data) == 0:
@@ -178,16 +180,20 @@ class SBCDecoder:
                 data = data[:-num_pad_bytes]
             
             # strip RTP
-            data = remainder + data[13:] # RTP header (12) + RTP payload (1)
+            data = data[13:] # RTP header (12) + RTP payload (1)
             #logger.debug("Got {} bytes to decode.".format(len(data)))
             buf.value = data
             readlen = len(data)
                 
             # create decode buffer if we haven't already
             if not self._sbc_populated:
-                self._populate_sbct(data=data)
-                logger.debug("sbc: fr={},bl={},sb={},mo={},al={},bp={}"
-                    ",fl={},en={}".format(
+                try:
+                    self._populate_sbct(data=data)
+                except Exception as e:
+                    logger.error(e)
+                    continue
+                logger.debug("sbc: freq={},blks={},sbnds={},mode={},alloc={},"
+                    "bpool={},flags={},endi={}".format(
                         self._sbc.frequency,
                         self._sbc.blocks,
                         self._sbc.subbands,
@@ -206,12 +212,11 @@ class SBCDecoder:
             # progress tracking
             buf_p = ct.cast(buf, ct.c_void_p)
             decbuf_p = ct.cast(decode_buf, ct.c_void_p)
-            to_decode = ct.c_size_t(readlen)
-            to_write = ct.c_size_t(decode_bufsize)
+            to_decode.value = readlen
+            to_write.value = decode_bufsize
 
             # decode loop
             total_decoded = 0
-            written = ct.c_size_t()
             total_written = 0
             while to_decode.value > 0:
                 written.value = 0
@@ -236,12 +241,6 @@ class SBCDecoder:
                 decbuf_p.value += written.value
                 to_write.value -= written.value
                 total_written += written.value
-            
-            # not all bytes may have been decoded
-            #logger.debug("Decoded total {} bytes.".format(total_decoded))
-            remainder = data[total_decoded+1:]
-            if len(remainder) > 0:
-                logger.debug("Remainder bytes = {}".format(remainder))
 
             # hand over decoded data
             if self.on_data_ready:
@@ -253,8 +252,7 @@ class SBCDecoder:
         SBC-encoded payload.
         """
         if data[0] != 0x9c:
-            logger.warning("Not SBC-encoded payload.")
-            return
+            raise Exception("Not SBC-encoded payload.")
 
         # refer to official A2DP specification
         self._sbc.frequency = (data[1] & 0xc0) >> 6
