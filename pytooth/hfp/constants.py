@@ -1,0 +1,14 @@
+
+HFP_PROFILE_UUID = "0000110e-0000-1000-8000-00805f9b34fb"
+
+HF_NREC = 0x0001 # EC and/or NR function
+HF_3WAY = 0x0002 # Call waiting or three-way calling
+HF_CLI = 0x0004 # CLI presentation capabilit
+HF_VOICE_RECOGNITION = 0x0008 # Voice recognition activation
+HF_REMOTE_VOL = 0x0010 # Remote volume control
+HF_ENHANCED_STATUS = 0x0020 # Wide band speech
+HF_ENHANCED_CONTROL = 0x0040
+HF_CODEC_NEGOTIATION = 0x0080
+
+HF_FEATURES = HF_3WAY | HF_CLI | HF_ENHANCED_STATUS |
+ HF_ENHANCED_CONTROL | HF_CODEC_NEGOTIATION
