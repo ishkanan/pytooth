@@ -1,4 +1,4 @@
-"""Defines a test entry point."""
+"""Defines a test application for A2DP."""
 
 import logging
 

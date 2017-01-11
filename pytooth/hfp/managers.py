@@ -70,11 +70,11 @@ class ProfileManager:
             node_info=None)
         self._profilemgr_proxy.RegisterProfile(
             HFP_DBUS_PROFILE_ENDPOINT,
-            HFP_PROFILE_UUID,
+            "hfp-hf",
             {
                 "Name": Variant("s", "Hands-Free"),
-                "Version": Variant("i", 0x0107),
-                "Features": Variant("i", HF_FEATURES),
+                "Version": Variant("q", 0x0107),
+                "Features": Variant("q", HF_FEATURES),
                 "RequireAuthentication": Variant("b", True),
                 "RequireAuthorization": Variant("b", False),
             })
@@ -85,7 +85,7 @@ class ProfileManager:
         """
         try:
             self._profilemgr_proxy.UnregisterProfile(
-                A2DP_DBUS_PROFILE_ENDPOINT)
+                HFP_DBUS_PROFILE_ENDPOINT)
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
