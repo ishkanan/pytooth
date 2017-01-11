@@ -41,7 +41,7 @@ def main():
     setup(
         name="pytooth",
         version="1.0.0",
-        description="Linux-only wrapper library of the Bluez5 stack.",
+        description="Linux-only Bluez5-based implementation of A2DP and HFP.",
         long_description=long_description,
         author="Anthony Ishkan",
         author_email="anthony.ishkan@gmail.com",
@@ -56,9 +56,6 @@ def main():
         entry_points={
             "console_scripts": [
                 "pytooth-test = pytooth.tests.main:main",
-            ],
-            "distutils.commands": [
-                "foo = mypackage.some_module:foo",
             ],
         },
         zip_safe=False

@@ -40,6 +40,16 @@ def validate_config(config):
             raise ValueError()
     except Exception:
         raise ConfigurationError("'retryinterval' must be at least 5.")
+    
+    # A bunch of required string settings
+    for s in ["profile"]:
+        arg = config.get(s, "")
+        if not isinstance(arg, str):
+            raise ConfigurationError(
+                "'{}' must be a non-empty string.".format(s))
+        if len(arg) == 0:
+            raise ConfigurationError(
+                "'{}' must be a non-empty string.".format(s))
 
     # Optional string properties
     for s in ["preferredaddress"]:
