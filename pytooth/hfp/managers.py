@@ -12,7 +12,7 @@ from pytooth.hfp.constants import HFP_PROFILE_UUID, \
 from pytooth.bluez5.dbus import Profile
 from pytooth.bluez5.helpers import Bluez5Utils
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("hfp/"+__name__)
 
 
 class ProfileManager:

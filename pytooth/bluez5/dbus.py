@@ -12,7 +12,7 @@ from gi.repository.GLib import Variant
 from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.errors import InvalidOperationError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("bluez5/"+__name__)
 
 
 class Media:

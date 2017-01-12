@@ -16,7 +16,7 @@ from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
 from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
 from pytooth.bluez5.helpers import Bluez5Utils
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("a2dp/"+__name__)
 
 
 class ProfileManager:

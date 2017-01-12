@@ -6,7 +6,7 @@ import wave
 
 from pytooth.a2dp.decoders import SBCDecoder
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("a2dp/"+__name__)
 
 
 class FileSBCSink:
