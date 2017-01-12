@@ -35,8 +35,7 @@ def main():
         "./configure; "
         "make; "
         "sudo make install; "
-        "cd ..; "
-        "sudo rm -Rf pygobject-3.22.0/")
+        "cd ..; ")
 
     setup(
         name="pytooth",
@@ -60,6 +59,9 @@ def main():
         },
         zip_safe=False
     )
+
+    # clean GObject folder
+    os.system("sudo rm -Rf packages/pygobject-3.22.0/")
 
 if __name__ == '__main__':
     main()
