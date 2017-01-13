@@ -29,6 +29,7 @@ def main():
 
     # pre-reqs
     packages_dir = os.getcwd()+"/packages/"
+    python_dir = os.path.abspath(os.path.join(os.getcwd(), "../"))
     user = getpass.getuser()
 
     # do GObject install
@@ -36,8 +37,8 @@ def main():
         "cd "+packages_dir+"; "
         "tar xf pygobject-3.22.0.tar.xz; "
         "cd pygobject-3.22.0; "
-        "sed -i '13273s/${prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
-        "sed -i '13275s/${exec_prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '13273s/${prefix}/"+python_dir.replace("/", "\\/")+"/' configure; "
+        "sed -i '13275s/${exec_prefix}/"+python_dir.replace("/", "\\/")+"/' configure; "
         "./configure; "
         "make; "
         "sudo make install; ")
@@ -47,8 +48,8 @@ def main():
         "cd "+packages_dir+"; "
         "tar xf dbus-python-1.2.4.tar.gz; "
         "cd dbus-python-1.2.4; "
-        "sed -i '12352s/${prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
-        "sed -i '12354s/${exec_prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '12352s/${prefix}/"+python_dir.replace("/", "\\/")+"/' configure; "
+        "sed -i '12354s/${exec_prefix}/"+python_dir.replace("/", "\\/")+"/' configure; "
         "./configure; "
         "make; "
         "sudo make install; ")
