@@ -1,7 +1,9 @@
 """Setup definition."""
 
+import getpass
 import os
 import platform
+
 from setuptools import setup, find_packages
 
 
@@ -25,18 +27,41 @@ def main():
         install_requirements = [x for x in install_requirements \
                                 if not x.startswith('setproctitle')]
 
+    # pre-reqs
+    packages_dir = os.getcwd()+"/packages/"
+    user = getpass.getuser()
+
     # do GObject install
     os.system(
-        "cd packages/; "
+        "cd "+packages_dir+"; "
         "tar xf pygobject-3.22.0.tar.xz; "
         "cd pygobject-3.22.0; "
-        "sed -i '13273s/${prefix}/\/home\/ishkanan\/.pyenv\/versions\/pytooth/' configure; "
-        "sed -i '13275s/${exec_prefix}/\/home\/ishkanan\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '13273s/${prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '13275s/${exec_prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
         "./configure; "
         "make; "
-        "sudo make install; "
-        "cd ..; ")
+        "sudo make install; ")
 
+    # do dbus-python install
+    os.system(
+        "cd "+packages_dir+"; "
+        "tar xf dbus-python-1.2.4.tar.gz; "
+        "cd dbus-python-1.2.4; "
+        "sed -i '12352s/${prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
+        "sed -i '12354s/${exec_prefix}/\/home\/"+user+"\/.pyenv\/versions\/pytooth/' configure; "
+        "./configure; "
+        "make; "
+        "sudo make install; ")
+ 
+    # do SBC decoder install
+    os.system(
+        "cd "+packages_dir+"; "
+        "tar xf sbc-1.2.tar.gz; "
+        "cd sbc-1.2; "
+        "./configure; "
+        "make; "
+        "sudo make install; ")
+    
     setup(
         name="pytooth",
         version="1.0.0",
@@ -60,8 +85,12 @@ def main():
         zip_safe=False
     )
 
-    # clean GObject folder
-    os.system("sudo rm -Rf packages/pygobject-3.22.0/")
+    # clean up working folders
+    os.system(
+        "cd "+packages_dir+"; "
+        "sudo rm -Rf pygobject-3.22.0/; "
+        "sudo rm -Rf sbc-1.2/; "
+        "sudo rm -Rf dbus-python-1.2.4/; ")
 
 if __name__ == '__main__':
     main()
