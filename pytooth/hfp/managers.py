@@ -5,12 +5,14 @@ from functools import partial
 import logging
 
 from gi.repository.GLib import Variant
+from tornado.ioloop import IOLoop
 
+from pytooth.bluez5.dbus import Profile
+from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
                                     HF_FEATURES
-from pytooth.bluez5.dbus import Profile
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.hfp.helpers import ServiceLevelConnection
 
 logger = logging.getLogger("hfp/"+__name__)
 
@@ -26,8 +28,11 @@ class ProfileManager:
             bus=system_bus)
 
         self._register_context = None
+        self._slc = None
         self._started = False
         self._system_bus = system_bus
+
+        self.io_loop = IOLoop.instance()
 
         # events
         self.on_connect = None
@@ -97,6 +102,18 @@ class ProfileManager:
     def _profile_on_connect(self, device, fd, fd_properties):
         """New service-level connection has been established.
         """
+
+        try:
+            self._slc = ServiceLevelConnection(
+                fd=fd,
+                async_reply_delay=5,
+                io_loop=self.io_loop)
+            self._slc.on_close = self._slc_close
+            self._slc.on_error = self._slc_error
+            self._slc.on_message = self._slc_message
+        except Exception:
+            logging.exception("SLC instantiation error.")
+            
         if self.on_connect:
             self.on_connect(
                 device=device,
@@ -114,6 +131,22 @@ class ProfileManager:
         """Profile is unregistered.
         """
         # unexpected?
-        if self._started and self.on_unexpected_stop:
+        if self._started:
             self.stop()
-            self.on_unexpected_stop()
+            if self.on_unexpected_stop:
+                self.on_unexpected_stop()
+
+    def _slc_close(self):
+        """Called when SLC is closed.
+        """
+        self._slc = None
+
+    def _slc_error(self):
+        """Called when AG reports that an error occurred.
+        """
+        pass
+
+    def _slc_message(self, code, data):
+        """Called when AG sends us a message.
+        """
+        logger.debug("Received message {} - {}".format(code, data))

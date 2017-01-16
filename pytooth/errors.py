@@ -4,3 +4,6 @@ class CommandError(Exception):
 
 class InvalidOperationError(Exception):
     pass
+
+class TimeoutError(Exception):
+    pass
