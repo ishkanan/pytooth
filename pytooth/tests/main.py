@@ -68,7 +68,7 @@ def main():
             ["TestApplication"],
             0)
     except Exception:
-        logging.critical("Import error. Is your profile key valid?")
+        logging.exception("Possible import error. Is your profile key valid?")
         return
     app = _t.TestApplication(config=config)
 
