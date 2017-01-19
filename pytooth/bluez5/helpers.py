@@ -1,7 +1,38 @@
 
+import dbus
+
+
+class DBusProxy:
+    """Helper class that combines a method proxy object and a property proxy
+    object.
+    """
+
+    PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
+
+    def __init__(self, proxy, path, interface):
+        self._interface = interface
+        self._path = path
+        self._proxy = proxy
+        self._props = dbus.Interface(
+            proxy,
+            DBusProxy.PROPERTIES_INTERFACE)
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def proxy(self):
+        return self._proxy
+
+    def get(self, name):
+        return self._props.Get(interface, name)
+
+    def set(self, name, value):
+        self._props.Set(interface, name, value)
+
 class Bluez5Utils:
     """Provides some helpful utility functions for interacting with bluez5.
-    https://github.com/littlecraft/phony/blob/master/src/phony/bluetooth/adapters/bluez5.py
     """
 
     SERVICE_NAME = "org.bluez"
@@ -9,8 +40,10 @@ class Bluez5Utils:
     AGENT_MANAGER_INTERFACE = "org.bluez.AgentManager1"
     DEVICE_INTERFACE = "org.bluez.Device1"
     MEDIA_INTERFACE = "org.bluez.Media1"
+    MEDIA_ENDPOINT_INTERFACE = "org.bluez.MediaEndpoint1"
     MEDIA_PLAYER_INTERFACE = "org.bluez.MediaPlayer1"
     MEDIA_TRANSPORT_INTERFACE = "org.bluez.MediaTransport1"
+    PROFILE_INTERFACE = "org.bluez.Profile1"
     PROFILE_MANAGER_INTERFACE = "org.bluez.ProfileManager1"
 
     OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager"
@@ -20,8 +53,9 @@ class Bluez5Utils:
     def get_managed_objects(bus):
         """Gets all objects that are in the bluez hierarchy.
         """
-        return bus.get(Bluez5Utils.SERVICE_NAME, "/")[
-            Bluez5Utils.OBJECT_MANAGER_INTERFACE].GetManagedObjects()
+        return dbus.Interface(
+            bus.get(Bluez5Utils.SERVICE_NAME, "/"),
+            Bluez5Utils.OBJECT_MANAGER_INTERFACE).GetManagedObjects()
 
     @staticmethod
     def find_adapter(bus, address=None):
@@ -32,12 +66,12 @@ class Bluez5Utils:
         objects = Bluez5Utils.get_managed_objects(bus)
         for path, obj in objects.items():
             try:
-                adapter = obj[Bluez5Utils.ADAPTER_INTERFACE]
-            except KeyError:
+                adapter = dbus.Interface(obj, Bluez5Utils.ADAPTER_INTERFACE)
+            except Exception:
                 continue
             
             if not address or address.upper() == adapter["Address"].upper():
-                return Bluez5Utils.get_adapter_with_props(
+                return Bluez5Utils.get_adapter(
                     bus=bus,
                     adapter_path=path)
 
@@ -50,7 +84,7 @@ class Bluez5Utils:
         or None if no adapters are present.
         """
         for path in paths:
-            obj = Bluez5Utils.get_adapter_with_props(
+            obj = Bluez5Utils.get_adapter(
                 bus=bus,
                 adapter_path=path)
             
@@ -61,48 +95,42 @@ class Bluez5Utils:
 
     @staticmethod
     def get_objectmanager(bus):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            "/")[Bluez5Utils.OBJECT_MANAGER_INTERFACE]
-        o.path = "/"
-        return o
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/"),
+            path="/",
+            interface=Bluez5Utils.OBJECT_MANAGER_INTERFACE)
 
     @staticmethod
     def get_agentmanager(bus):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            "/org/bluez")[Bluez5Utils.AGENT_MANAGER_INTERFACE]
-        o.path = "/org/bluez"
-        return o
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
+            path="/org/bluez",
+            interface=Bluez5Utils.AGENT_MANAGER_INTERFACE)
 
     @staticmethod
-    def get_adapter_with_props(bus, adapter_path):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            adapter_path)
-        o.path = adapter_path
-        return o
+    def get_adapter(bus, adapter_path):
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, adapter_path),
+            path=adapter_path,
+            interface=Bluez5Utils.ADAPTER_INTERFACE)
 
     @staticmethod
     def get_media(bus, adapter_path):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            adapter_path)[Bluez5Utils.MEDIA_INTERFACE]
-        o.path = adapter_path
-        return o
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, adapter_path),
+            path=adapter_path,
+            interface=Bluez5Utils.MEDIA_INTERFACE)
 
     @staticmethod
-    def get_media_transport_with_props(bus, transport_path):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            transport_path)
-        o.path = transport_path
-        return o
+    def get_media_transport(bus, transport_path):
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, transport_path),
+            path=transport_path,
+            interface=Bluez5Utils.MEDIA_TRANSPORT_INTERFACE)
 
     @staticmethod
     def get_profilemanager(bus):
-        o = bus.get(
-            Bluez5Utils.SERVICE_NAME,
-            "/org/bluez")[Bluez5Utils.PROFILE_MANAGER_INTERFACE]
-        o.path = "/org/bluez"
-        return o
+        return DBusProxy(
+            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
+            path="/org/bluez",
+            interface=Bluez5Utils.PROFILE_MANAGER_INTERFACE)

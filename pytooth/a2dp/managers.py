@@ -29,7 +29,6 @@ class ProfileManager:
         self._profilemgr_proxy = Bluez5Utils.get_profilemanager(
             bus=system_bus)
 
-        self._register_context = None
         self._started = False
         self._system_bus = system_bus
 
@@ -44,7 +43,6 @@ class ProfileManager:
         if self._started:
             return
 
-        self._register()
         self._started = True
 
     def stop(self):
@@ -53,26 +51,21 @@ class ProfileManager:
         if not self._started:
             return
 
-        try:
-            self._unregister()
-        except Exception:
-            logger.exception("Failed to unregister profile.")
         self._started = False
 
     def _register(self):
         """Registers the profile implementation endpoint on DBus.
         """
-        self._profile = Profile()
+        logger.debug("Registering A2DP profile on DBus...")
+
+        self._profile = Profile(
+            system_bus=self._system_bus,
+            dbus_path=A2DP_DBUS_PROFILE_ENDPOINT)
         self._profile.on_connect = self._profile_on_connect
         self._profile.on_disconnect = self._profile_on_disconnect
         self._profile.on_release = self._profile_on_release
 
-        logger.debug("Registering A2DP profile on DBus...")
-        self._register_context = self._system_bus.register_object(
-            path=A2DP_DBUS_PROFILE_ENDPOINT,
-            object=self._profile,
-            node_info=None)
-        self._profilemgr_proxy.RegisterProfile(
+        self._profilemgr_proxy.proxy.RegisterProfile(
             A2DP_DBUS_PROFILE_ENDPOINT,
             A2DP_PROFILE_UUID,
             {
@@ -86,14 +79,11 @@ class ProfileManager:
         """Unregisters the profile endpoint on DBus.
         """
         try:
-            self._profilemgr_proxy.UnregisterProfile(
+            self._profilemgr_proxy.proxy.UnregisterProfile(
                 A2DP_DBUS_PROFILE_ENDPOINT)
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
-        if self._register_context:
-            self._register_context.unregister()
-            self._register_context = None
         self._profile = None
 
     def _profile_on_connect(self, device, fd, fd_properties):
@@ -138,11 +128,11 @@ class MediaManager:
         self.on_unexpected_release = None
 
         # subscribe to property changes
-        system_bus.subscribe(
-            iface=Bluez5Utils.PROPERTIES_INTERFACE,
+        system_bus.add_signal_receiver(
+            handler_function=self._player_properties_changed,
             signal="PropertiesChanged",
-            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
-            signal_fired=self._player_properties_changed)
+            dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
+            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE)
 
     def start(self, adapter):
         """Starts a media connection via specified adapter. If already started,
@@ -245,8 +235,12 @@ class MediaManager:
 
         # build endpoint and register on DBus
         logger.debug("Building media endpoint...")
+        dbus_path = "{}_{}".format(
+            A2DP_DBUS_MEDIA_ENDPOINT,
+            MediaManager._endpoint_id)
         endpoint = MediaEndpoint(
             system_bus=self._system_bus,
+            dbus_path=dbus_path,
             configuration=SBC_CONFIGURATION)
         endpoint.on_release = partial(
             self._endpoint_release,
@@ -257,11 +251,7 @@ class MediaManager:
         endpoint.on_transport_state_changed = partial(
             self._endpoint_transport_state_changed,
             adapter)
-        logger.debug("Registering media endpoint on DBus...")
-        dbus_path = "{}_{}".format(
-            A2DP_DBUS_MEDIA_ENDPOINT,
-            MediaManager._endpoint_id)
-        endpoint.register(dbus_path)
+        logger.debug("Registered media endpoint on DBus.")
 
         # register endpoint with bluez5
         logger.debug("Registering media capabilities with bluez...")
@@ -273,7 +263,6 @@ class MediaManager:
                 capabilities=SBC_CAPABILITIES)
         except Exception:
             logger.exception("Error registering capabilities.")
-            endpoint.unregister()
             raise
 
         # all good!
@@ -286,10 +275,8 @@ class MediaManager:
         """Unregisters a media endpoint from DBus.
         """
         media = self._connections[adapter]["media"]
-        endpoint = self._connections[adapter]["endpoint"]
         logger.debug("Unregistering media for adapter {}...".format(adapter))
         media.unregister(endpoint.path)
-        endpoint.unregister()
         logger.debug("Unregistered media for adapter {}.".format(adapter))
 
     def _endpoint_release(self, adapter):

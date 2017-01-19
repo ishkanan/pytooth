@@ -27,7 +27,6 @@ class ProfileManager:
         self._profilemgr_proxy = Bluez5Utils.get_profilemanager(
             bus=system_bus)
 
-        self._register_context = None
         self._slc = None
         self._started = False
         self._system_bus = system_bus
@@ -63,17 +62,14 @@ class ProfileManager:
     def _register(self):
         """Registers the profile implementation endpoint on DBus.
         """
+        logger.debug("Registering HFP profile on DBus...")
+
         self._profile = Profile()
         self._profile.on_connect = self._profile_on_connect
         self._profile.on_disconnect = self._profile_on_disconnect
         self._profile.on_release = self._profile_on_release
 
-        logger.debug("Registering HFP profile on DBus...")
-        self._register_context = self._system_bus.register_object(
-            path=HFP_DBUS_PROFILE_ENDPOINT,
-            object=self._profile,
-            node_info=None)
-        self._profilemgr_proxy.RegisterProfile(
+        self._profilemgr_proxy.proxy.RegisterProfile(
             HFP_DBUS_PROFILE_ENDPOINT,
             "hfp-hf",
             {
@@ -89,14 +85,11 @@ class ProfileManager:
         """Unregisters the profile endpoint on DBus.
         """
         try:
-            self._profilemgr_proxy.UnregisterProfile(
+            self._profilemgr_proxy.proxy.UnregisterProfile(
                 HFP_DBUS_PROFILE_ENDPOINT)
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
-        if self._register_context:
-            self._register_context.unregister()
-            self._register_context = None
         self._profile = None
 
     def _profile_on_connect(self, device, fd, fd_properties):
