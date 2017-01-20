@@ -89,9 +89,7 @@ class ProfileManager:
         """
         if self.on_connect:
             self.on_connect(
-                device=device,
-                fd=fd,
-                fd_properties=fd_properties)
+                device=device)
 
     def _profile_on_disconnect(self, device):
         """Device is disconnected from profile.

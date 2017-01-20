@@ -108,7 +108,7 @@ class AdvancedAudioProfile:
         if self.on_adapter_properties_changed:
             self.on_adapter_properties_changed(adapter=adapter, props=props)
 
-    def _profile_connect(self, device, fd, fd_properties):
+    def _profile_connect(self, device):
         """New service-level connection has been established.
         """
         logger.debug("Device connected.")
