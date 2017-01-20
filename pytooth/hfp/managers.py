@@ -4,11 +4,11 @@
 from functools import partial
 import logging
 
-from gi.repository.GLib import Variant
+from dbus import UInt16
 from tornado.ioloop import IOLoop
 
 from pytooth.bluez5.dbus import Profile
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.helpers import Bluez5Utils, to_python_types
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
                                     HF_FEATURES
@@ -64,7 +64,9 @@ class ProfileManager:
         """
         logger.debug("Registering HFP profile on DBus...")
 
-        self._profile = Profile()
+        self._profile = Profile(
+            system_bus=self._system_bus,
+            dbus_path=HFP_DBUS_PROFILE_ENDPOINT)
         self._profile.on_connect = self._profile_on_connect
         self._profile.on_disconnect = self._profile_on_disconnect
         self._profile.on_release = self._profile_on_release
@@ -73,11 +75,11 @@ class ProfileManager:
             HFP_DBUS_PROFILE_ENDPOINT,
             "hfp-hf",
             {
-                "Name": Variant("s", "Hands-Free"),
-                "Version": Variant("q", 0x0107),
-                "Features": Variant("q", HF_FEATURES),
-                "RequireAuthentication": Variant("b", True),
-                "RequireAuthorization": Variant("b", False),
+                "Name": "Hands-Free",
+                "Version": UInt16(0x0107),
+                "Features": UInt16(HF_FEATURES),
+                "RequireAuthentication": True,
+                "RequireAuthorization": False,
             })
         logger.debug("Registered HFP profile on DBus.")
 

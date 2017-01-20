@@ -4,8 +4,6 @@
 from functools import partial
 import logging
 
-from gi.repository.GLib import Variant
-
 from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     A2DP_SINK_UUID, \
                                     A2DP_DBUS_PROFILE_ENDPOINT, \
@@ -14,7 +12,7 @@ from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     SBC_CODEC, \
                                     SBC_CONFIGURATION
 from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.helpers import Bluez5Utils, to_python_types
 
 logger = logging.getLogger("a2dp/"+__name__)
 
@@ -69,9 +67,9 @@ class ProfileManager:
             A2DP_DBUS_PROFILE_ENDPOINT,
             A2DP_PROFILE_UUID,
             {
-                "Name": Variant("s", "AdvancedAudioDistribution"),
-                "RequireAuthentication": Variant("b", True),
-                "RequireAuthorization": Variant("b", False),
+                "Name": "AdvancedAudioDistribution",
+                "RequireAuthentication": True,
+                "RequireAuthorization": False,
             })
         logger.debug("Registered A2DP profile on DBus.")
 
@@ -132,7 +130,8 @@ class MediaManager:
             handler_function=self._player_properties_changed,
             signal="PropertiesChanged",
             dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
-            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE)
+            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
+            path_keyword="path")
 
     def start(self, adapter):
         """Starts a media connection via specified adapter. If already started,
@@ -160,25 +159,21 @@ class MediaManager:
         self._unregister(adapter)
         self._connections.pop(adapter)
 
-    def _player_properties_changed(self, sender, object, iface, signal, params):
+    @to_python_types
+    def _player_properties_changed(self, interface, path, changed, invalidated):
         """Fired by the system bus subscription when a Bluez5 object property
-        changes. 
-        e.g.
-            object=/org/bluez/hci0/dev_BC_F5_AC_81_D0_9E/player0
-            iface=org.freedesktop.DBus.Properties
-            signal=PropertiesChanged
-            params=('org.bluez.MediaPlayer1', {'Status': 'paused'}, [])
+        changes.
         """
 
         # ignore the frequent single "position" updates
-        if len(params[1]) == 1 and "Position" in params[1]:
+        if len(changed) == 1 and "Position" in changed:
             return
 
-        logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
-            object, iface, signal, params))
+        logger.debug("SIGNAL: interface={}, path={}, changed={}, "
+            "invalidated={}".format(interface, path, changed, invalidated))
 
         # get adapter object for access to context
-        adapter_path = "/org/bluez/"+object.split("/")[3]
+        adapter_path = "/org/bluez/"+path.split("/")[3]
         adapter = None
         for k, v in self._connections.items():
             if k.path == adapter_path:

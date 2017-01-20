@@ -4,6 +4,7 @@
 from datetime import timedelta
 import logging
 
+from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
 logger = logging.getLogger("gi")
@@ -15,11 +16,20 @@ class GtkMainLoop:
 
     def __init__(self, io_loop):
         self.__deadline = timedelta(milliseconds=25)
-        self.__gi_loop = GLib.MainLoop()
+        DBusGMainLoop(set_as_default=True)
+        self.__gi_loop =  GLib.MainLoop()
         self.__started = False
         
         self.io_loop = io_loop
 
+    @property
+    def gi_loop(self):
+        return self.__gi_loop
+
+    @property
+    def tornado_loop(self):
+        return self.io_loop
+        
     def start(self):
         """Starts the GI loop. If already started, this does nothing.
         """

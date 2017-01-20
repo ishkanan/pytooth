@@ -3,8 +3,10 @@
 
 import logging
 
+from dbus import UInt32
+
 from pytooth.agents import NoInputNoOutputAgent
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
 from pytooth.constants import DBUS_AGENT_PATH
 from pytooth.errors import CommandError, InvalidOperationError
 
@@ -35,16 +37,16 @@ class BaseAdapter:
 
         # dbus / bluez objects
         self._adapter_proxy = None
-        self._adapter_props_proxy = None
         self._bus = system_bus
         self._objectmgr_proxy = Bluez5Utils.get_objectmanager(bus=system_bus)
 
         # subscribe to property changes
-        system_bus.subscribe(
-            iface=Bluez5Utils.PROPERTIES_INTERFACE,
-            signal="PropertiesChanged",
+        system_bus.add_signal_receiver(
+            handler_function=self._propertieschanged,
+            signal_name="PropertiesChanged",
+            dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
             arg0=Bluez5Utils.ADAPTER_INTERFACE,
-            signal_fired=self._propertieschanged)
+            path_keyword = "path")
 
     def start(self):
         """Starts interaction with bluez. If already started, this does nothing.
@@ -65,15 +67,14 @@ class BaseAdapter:
         self._known_adapters = []
         self._connected = False
         self._adapter_proxy = None
-        self._adapter_props_proxy = None
 
     @property
     def address(self):
         """Returns the address of the connected adapter (if any), or None if
         no adapter is connected.
         """
-        if self._adapter_props_proxy:
-            return self._adapter_props_proxy.Address
+        if self._adapter_proxy:
+            return self._adapter_proxy.get("Address")
         return None
 
     @property
@@ -87,8 +88,8 @@ class BaseAdapter:
         """Returns the DBus object path of the connected adapter (if any), or
         None if no adapter is connected.
         """
-        if self._adapter_props_proxy:
-            return self._adapter_props_proxy.path
+        if self._adapter_proxy:
+            return self._adapter_proxy.path
         return None
 
     def set_discoverable(self, enabled, timeout=None):
@@ -98,12 +99,12 @@ class BaseAdapter:
 
         if not self._started:
             raise InvalidOperationError("Not started.")
-        if self._adapter_props_proxy is None:
+        if self._adapter_proxy is None:
             raise InvalidOperationError("No adapter available.")
             
         try:
-            self._adapter_props_proxy.Discoverable = enabled
-            self._adapter_props_proxy.DiscoverableTimeout = timeout or 0
+            self._adapter_proxy.set("Discoverable", enabled)
+            self._adapter_proxy.set("DiscoverableTimeout", UInt32(timeout or 0))
         except Exception as e:
             raise CommandError(e)
 
@@ -114,12 +115,12 @@ class BaseAdapter:
 
         if not self._started:
             raise InvalidOperationError("Not started.")
-        if self._adapter_props_proxy is None:
+        if self._adapter_proxy is None:
             raise InvalidOperationError("No adapter available.")
 
         try:
-            self._adapter_props_proxy.Pairable = enabled
-            self._adapter_props_proxy.PairableTimeout = timeout or 0
+            self._adapter_proxy.set("Pairable", enabled)
+            self._adapter_proxy.set("PairableTimeout", UInt32(timeout or 0))
         except Exception as e:
             raise CommandError(e)
 
@@ -157,13 +158,11 @@ class BaseAdapter:
             if is_lost:
                 logger.info("No suitable adapter is available.")
                 self._adapter_proxy = None
-                self._adapter_props_proxy = None
             elif is_found:
                 logger.info("Adapter '{} - {}' is available.".format(
-                    adapter.Name,
-                    adapter.Address))
-                self._adapter_proxy = adapter[Bluez5Utils.ADAPTER_INTERFACE]
-                self._adapter_props_proxy = adapter
+                    adapter.get("Name"),
+                    adapter.get("Address")))
+                self._adapter_proxy = adapter
             else:
                 logger.debug("No change in adapter status.")
             if (is_found or is_lost) and self.on_connected_changed:
@@ -179,34 +178,33 @@ class BaseAdapter:
             delay=self.retry_interval,
             callback=self._check_adapter_available)
 
-    def _propertieschanged(self, sender, object, iface, signal, params):
+    def _propertieschanged(self, interface, changed, invalidated, path):
         """Fired by the system bus subscription when a Bluez5 object property
-        changes. 
-        e.g.
-            object=/org/bluez/hci0
-            iface=org.freedesktop.DBus.Properties
-            signal=PropertiesChanged
-            params=('org.bluez.Adapter1', {'Connected': True}, [])
+        changes.
         """
         if not self._started:
             return
 
-        logger.debug("SIGNAL: object={}, iface={}, signal={}, params={}".format(
-            object, iface, signal, params))
+        interface = dbus_to_py(interface)
+        changed = dbus_to_py(changed)
+        invalidated = dbus_to_py(invalidated)
+        path = dbus_to_py(path)
+
+        logger.debug("SIGNAL: interface={}, path={}, changed={}, "
+            "invalidated={}".format(interface, path, changed, invalidated))
 
         # make it known to check it later
-        if object not in self._known_adapters:
+        if path not in self._known_adapters:
             logger.debug("Remembering adapter {} for later polling.".format(
-                object))
-            self._known_adapters.append(object)
+                path))
+            self._known_adapters.append(path)
 
-        # pass DBus property proxy to event handler if the adapter is the one
-        # we want to use
-        if object == self.path:
+        # pass changes to event handler if adapter is the one we want to use
+        if path == self.path:
             if self.on_properties_changed:
                 self.on_properties_changed(
                     adapter=self,
-                    props=params[1])
+                    props=changed)
 
 class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
@@ -219,26 +217,24 @@ class OpenPairableAdapter(BaseAdapter):
         self.io_loop = io_loop
 
         # build agent
-        self._agent = NoInputNoOutputAgent()
+        self._agent = NoInputNoOutputAgent(
+            system_bus=system_bus,
+            dbus_path=DBUS_AGENT_PATH)
         self._agent.on_release = self._on_agent_release
-        self._register_context = self._system_bus.register_object(
-            path=DBUS_AGENT_PATH,
-            object=self._agent,
-            node_info=None)
 
         # register it
         self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
-            bus=self._system_bus)
+            bus=system_bus)
         self._register_agent()
 
     def _register_agent(self):
         """Registers the agent.
         """
-        self._agentmgr_proxy.RegisterAgent(
+        self._agentmgr_proxy.proxy.RegisterAgent(
             DBUS_AGENT_PATH,
             "NoInputNoOutput")
         logger.debug("Agent registered.")
-        self._agentmgr_proxy.RequestDefaultAgent(
+        self._agentmgr_proxy.proxy.RequestDefaultAgent(
             DBUS_AGENT_PATH)
         logger.debug("We are now the default agent.")
 

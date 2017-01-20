@@ -2,13 +2,13 @@
 https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 """
 
-import dbus
 import logging
 import os
 
-from gi.repository.GLib import Variant
+from dbus import Byte, ByteArray
+import dbus.service
 
-from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
 from pytooth.errors import InvalidOperationError
 
 logger = logging.getLogger("bluez5/"+__name__)
@@ -29,9 +29,9 @@ class Media:
         self._media_proxy.proxy.RegisterEndpoint(
             dbus_path,
             {
-                "UUID": Variant("s", uuid),
-                "Codec": Variant("y", codec),
-                "Capabilities": Variant("ay", capabilities)
+                "UUID": uuid,
+                "Codec": Byte(codec),
+                "Capabilities": ByteArray(capabilities)
             })
 
     def unregister(self, dbus_path):
@@ -44,7 +44,7 @@ class MediaEndpoint(dbus.service.Object):
     """
 
     def __init__(self, system_bus, dbus_path, configuration):
-        super().__init__(self, system_bus, dbus_path)
+        dbus.service.Object.__init__(self, system_bus, dbus_path)
 
         self._configuration = configuration # desired
         self._transport = None
@@ -59,6 +59,9 @@ class MediaEndpoint(dbus.service.Object):
     def SetConfiguration(self, transport, properties):
         """Invoked by bluez5 when the transport configuration has been set.
         """
+        transport = dbus_to_py(transport)
+        properties = dbus_to_py(properties)
+
         logger.debug("Media endpoint config set - {}".format(properties))
         logger.debug("Media transport is available - {}".format(transport))
 
@@ -84,6 +87,8 @@ class MediaEndpoint(dbus.service.Object):
     def SelectConfiguration(self, capabilities):
         """Invoked by bluez5 when negotiating transport configuration with us.
         """
+        capabilities = dbus_to_py(capabilities)
+
         logger.debug("Media endpoint capabilities - {}".format(capabilities))
         return self._configuration
 
@@ -93,8 +98,11 @@ class MediaEndpoint(dbus.service.Object):
         """Invoked by bluez5 when it is forgetting configuration because the
         transport was stopped.
         """
+        transport = dbus_to_py(transport)
+
         logger.debug("Bluez5 has cleared the configuration for transport - {}"
             "".format(transport))
+
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
                 transport=self._transport,
@@ -177,7 +185,7 @@ class Profile(dbus.service.Object):
     """
 
     def __init__(self, system_bus, dbus_path):
-        super().__init__(self, system_bus, dbus_path)
+        dbus.service.Object.__init__(self, system_bus, dbus_path)
 
         self._fds = {} # device: [fd]
 
@@ -200,8 +208,11 @@ class Profile(dbus.service.Object):
     def NewConnection(self, device, fd, fd_properties):
         """Called when a new service-level connection has been established.
         """
-        logger.debug("New service-level connection - device={}, fd={}, fd_"
-            "properties={}".format(device, fd, fd_properties))
+        device = dbus_to_py(device)
+        fd_properties = dbus_to_py(fd_properties)
+
+        logger.debug("New service-level connection - device={}, fd={}, "
+            "fd_properties={}".format(device, fd, fd_properties))
         fd = fd.take()
         logger.debug("OS-level fd = {}".format(fd))
 
@@ -221,6 +232,8 @@ class Profile(dbus.service.Object):
     def RequestDisconnection(self, device):
         """Called when profile is disconnected from device.
         """
+        device = dbus_to_py(device)
+
         logger.debug("Profile connections to device {} are now closed.".format(
             device))
         

@@ -25,7 +25,10 @@ def try_exit(gtkloop, app):
     global _closing
 
     if _closing:
-        app.stop()
+        try:
+            app.stop()
+        except Exception:
+            logging.exception("Error gracefully stopping application.")
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")
 
@@ -59,6 +62,9 @@ def main():
             print("WARNING! Could not parse logging configuration, logging may "
                 "not be configured properly - {}".format(e))
 
+    # make loop before connecting to DBus
+    gtkloop = GtkMainLoop(io_loop=IOLoop.instance())
+    
     # load profile test app
     try:
         _t = __import__(
@@ -74,7 +80,6 @@ def main():
 
     # run the test app
     logging.info("Running...")
-    gtkloop = GtkMainLoop(io_loop=IOLoop.instance())
     signal.signal(signal.SIGINT, signal_handler)
     PeriodicCallback(partial(
         try_exit,

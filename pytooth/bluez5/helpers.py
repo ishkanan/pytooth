@@ -2,6 +2,59 @@
 import dbus
 
 
+# maps DBus types to Python types (for decode)
+_dtop_type_map = {
+    dbus.Boolean: bool,
+    dbus.Byte: int,
+    dbus.Double: float,
+    dbus.Int16: int,
+    dbus.Int32: int,
+    dbus.Int64: int,
+    dbus.ObjectPath: str,
+    dbus.Signature: str,
+    dbus.String: str,
+    dbus.UInt16: int,
+    dbus.UInt32: int,
+    dbus.UInt64: int
+}
+
+def dbus_to_py(obj):
+    """Helper function that recursively converts a dbus-python object to native
+    Python types. If a type is not mapped, it will be returned as-is.
+    """
+    # container type
+    if isinstance(obj, dbus.Array):
+        return [dbus_to_py(obj) for obj in obj]
+    if isinstance(obj, dbus.ByteArray):
+        return bytearray([int(obj) for obj in obj])
+    if isinstance(obj, dbus.Dictionary):
+        return dict([
+            (dbus_to_py(k), dbus_to_py(v)) for k, v in obj.items()])
+
+    # basic type
+    if obj.__class__ in _dtop_type_map:
+        return _dtop_type_map[obj.__class__](obj)
+    return obj
+
+def to_python_types(f):
+    """Decorator to recursively convert a dbus-python object to native
+    Python types. If a type is not mapped, it will be returned as-is.
+    """
+
+    # NOTE: this doesn't work as dbus-python needs an exact method signature
+    # apparently, so maybe figure out another way? Maybe patch the dbus
+    # method decorator directly?
+    def decorated(*args, **kwargs):
+        new_args = [dbus_to_py(a) for a in args]
+        new_kwargs = dict([(k, dbus_to_py(v)) for k, v in kwargs.items()])
+
+        try:
+            return f(*new_args, **new_kwargs)
+        except Exception as e:
+            print(e)
+
+    return decorated
+
 class DBusProxy:
     """Helper class that combines a method proxy object and a property proxy
     object.
@@ -23,13 +76,13 @@ class DBusProxy:
 
     @property
     def proxy(self):
-        return self._proxy
+        return dbus.Interface(self._proxy, self._interface)
 
     def get(self, name):
-        return self._props.Get(interface, name)
+        return self._props.Get(self._interface, name)
 
     def set(self, name, value):
-        self._props.Set(interface, name, value)
+        self._props.Set(self._interface, name, value)
 
 class Bluez5Utils:
     """Provides some helpful utility functions for interacting with bluez5.
@@ -37,6 +90,7 @@ class Bluez5Utils:
 
     SERVICE_NAME = "org.bluez"
     ADAPTER_INTERFACE = "org.bluez.Adapter1"
+    AGENT_INTERFACE = "org.bluez.Agent1"
     AGENT_MANAGER_INTERFACE = "org.bluez.AgentManager1"
     DEVICE_INTERFACE = "org.bluez.Device1"
     MEDIA_INTERFACE = "org.bluez.Media1"
@@ -54,7 +108,7 @@ class Bluez5Utils:
         """Gets all objects that are in the bluez hierarchy.
         """
         return dbus.Interface(
-            bus.get(Bluez5Utils.SERVICE_NAME, "/"),
+            bus.get_object(Bluez5Utils.SERVICE_NAME, "/"),
             Bluez5Utils.OBJECT_MANAGER_INTERFACE).GetManagedObjects()
 
     @staticmethod
@@ -64,12 +118,11 @@ class Bluez5Utils:
         are present.
         """
         objects = Bluez5Utils.get_managed_objects(bus)
-        for path, obj in objects.items():
-            try:
-                adapter = dbus.Interface(obj, Bluez5Utils.ADAPTER_INTERFACE)
-            except Exception:
+        for path, ifaces in objects.items():
+            adapter = ifaces.get(Bluez5Utils.ADAPTER_INTERFACE)
+            if adapter is None:
                 continue
-            
+
             if not address or address.upper() == adapter["Address"].upper():
                 return Bluez5Utils.get_adapter(
                     bus=bus,
@@ -96,41 +149,41 @@ class Bluez5Utils:
     @staticmethod
     def get_objectmanager(bus):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/"),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/"),
             path="/",
             interface=Bluez5Utils.OBJECT_MANAGER_INTERFACE)
 
     @staticmethod
     def get_agentmanager(bus):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
             path="/org/bluez",
             interface=Bluez5Utils.AGENT_MANAGER_INTERFACE)
 
     @staticmethod
     def get_adapter(bus, adapter_path):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, adapter_path),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, adapter_path),
             path=adapter_path,
             interface=Bluez5Utils.ADAPTER_INTERFACE)
 
     @staticmethod
     def get_media(bus, adapter_path):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, adapter_path),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, adapter_path),
             path=adapter_path,
             interface=Bluez5Utils.MEDIA_INTERFACE)
 
     @staticmethod
     def get_media_transport(bus, transport_path):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, transport_path),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, transport_path),
             path=transport_path,
             interface=Bluez5Utils.MEDIA_TRANSPORT_INTERFACE)
 
     @staticmethod
     def get_profilemanager(bus):
         return DBusProxy(
-            proxy=bus.get(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
             path="/org/bluez",
             interface=Bluez5Utils.PROFILE_MANAGER_INTERFACE)
