@@ -12,7 +12,7 @@ from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
                                     HF_FEATURES
-from pytooth.hfp.helpers import ServiceLevelConnection
+from pytooth.hfp.helpers import RemotePhone, SerialPortConnection
 
 logger = logging.getLogger("hfp/"+__name__)
 
@@ -27,7 +27,6 @@ class ProfileManager:
         self._profilemgr_proxy = Bluez5Utils.get_profilemanager(
             bus=system_bus)
 
-        self._slc = None
         self._started = False
         self._system_bus = system_bus
 
@@ -95,25 +94,26 @@ class ProfileManager:
         self._profile = None
 
     def _profile_on_connect(self, device, fd, fd_properties):
-        """New service-level connection has been established.
+        """New RFCOMM connection has been established.
         """
 
         try:
-            self._slc = ServiceLevelConnection(
+            conn = SerialPortConnection(
                 fd=fd,
                 async_reply_delay=5,
                 io_loop=self.io_loop)
-            self._slc.on_close = self._slc_close
-            self._slc.on_error = self._slc_error
-            self._slc.on_message = self._slc_message
         except Exception:
-            logging.exception("SLC instantiation error.")
-            
+            logging.exception("SerialPortConnection instantiation error.")
+            return
+
+        # hand remote phone proxy to something that cares
+        phone = RemotePhone(
+            connection=conn,
+            io_loop=self.io_loop)
         if self.on_connect:
             self.on_connect(
                 device=device,
-                fd=fd,
-                fd_properties=fd_properties)
+                phone=phone)
 
     def _profile_on_disconnect(self, device):
         """Device is disconnected from profile.
@@ -130,18 +130,3 @@ class ProfileManager:
             self.stop()
             if self.on_unexpected_stop:
                 self.on_unexpected_stop()
-
-    def _slc_close(self):
-        """Called when SLC is closed.
-        """
-        self._slc = None
-
-    def _slc_error(self):
-        """Called when AG reports that an error occurred.
-        """
-        pass
-
-    def _slc_message(self, code, data):
-        """Called when AG sends us a message.
-        """
-        logger.debug("Received message {} - {}".format(code, data))

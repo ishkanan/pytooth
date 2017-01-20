@@ -3,21 +3,24 @@ from collections import defaultdict
 import logging
 import socket
 
-from tornado.gen import Future
+from tornado.gen import coroutine, Future
 from tornado.iostream import IOStream
+
+from pytooth.hfp.constants import HF_FEATURES
 
 logger = logging.getLogger("hfp/"+__name__)
 
 
-class ServiceLevelConnection:
-    """Models a SLC to a remote device over Bluetooth serial link.
-    Provides send and receive functionality (with proper parsing), and can
-    track replies to certain requests.
+class SerialPortConnection:
+    """Models a serial connection to a remote device over a Bluetooth RFCOMM
+    link. Provides send and receive functionality (with proper parsing), and
+    can track replies to certain requests.
     """
 
     def __init__(self, fd, async_reply_delay, io_loop):
         self._async_reply_delay = async_reply_delay
         self._io_loop = io_loop
+        self._remainder = b''
         # <code>: [{} ->
         #   "future": <future>
         #   "handle": <timeout handle>]
@@ -33,6 +36,11 @@ class ServiceLevelConnection:
         self._stream.read_until_close(
             streaming_callback=self._data_ready)
 
+    def close(self):
+        """Voluntarily closes the RFCOMM connection.
+        """
+        self._stream.close()
+
     def _async_timeout(self, code):
         """Called when an expected async reply doesn't arrive in the expected
         timeframe.
@@ -44,8 +52,8 @@ class ServiceLevelConnection:
     def _data_ready(self, data):
         """Parses data that has been received over the serial connection.
         """
-        logger.debug("Received {} bytes from SLC {} - {}".format(
-            len(data), self, data))
+        logger.debug("Received {} bytes from AG over SLC - {}".format(
+            len(data), data))
         if len(self._remainder) > 0:
             data = self._remainder + data
             logger.debug("Appended left-over bytes - {}".format(
@@ -68,7 +76,8 @@ class ServiceLevelConnection:
                 msg = msg.decode('ascii', errors='ignore')
 
             try:
-                self._on_message(msg)
+                if len(msg) > 0:
+                    self._on_message(msg)
             except Exception:
                 logger.exception("Message handler threw an unhandled "
                     "exception with data \"{}\"".format(msg))
@@ -78,11 +87,11 @@ class ServiceLevelConnection:
                 return
 
     def _on_close(self, *args):
-        """The SLC has closed.
+        """The connection was closed by either side.
         """
         self._stream = None
         self._remainder = b''
-        logger.info("Service-level connection to device was closed.")
+        logger.info("Serial port connection to AG was closed.")
 
         if self.on_close:
             self.on_close()
@@ -99,12 +108,12 @@ class ServiceLevelConnection:
         elif msg == "OK":
             # generic response
             if self.on_message:
-                self.on_message(code="OK")
+                self.on_message(code="OK", data=None)
 
         else:
             # strip leading "+" and split from first ":"
             # e.g. +BRSF: ...
-            code, params = msg[1:].split(":", 1)
+            code, params = msg[1:].split(":", maxsplit=1)
 
             # find a handler function
             func_name = "_handle_{}".format(code.lower())
@@ -138,7 +147,16 @@ class ServiceLevelConnection:
     def _handle_brsf(self, params):
         """Supported features of the AG.
         """
-        pass
+        params = int(params)
+
+        return {
+            "3WAY": (params & 0x0001) == 0x0001,
+            "NREC": (params & 0x0002) == 0x0002,
+            "VOICE_RECOGNITION": (params & 0x0004) == 0x0004,
+            "INBAND": (params & 0x0008) == 0x0008,
+            "PHONE_VTAG": (params & 0x0010) == 0x0010,
+            "WIDE_BAND": (params & 0x0020) == 0x0020
+        }
 
     def _handle_cind(self, params):
         """Indicators sent by the AG.
@@ -153,12 +171,13 @@ class ServiceLevelConnection:
         """
 
         try:
+            logger.debug("Sending \"{}\" over SCL.".format(message))
             data = message+"\x0a"
             self._stream.write(data.encode("ascii"))
         except Exception as e:
-            logger.exception("Error sending '{}' over SCL.".format(
+            logger.exception("Error sending \"{}\" over SCL.".format(
                 message))
-            raise ConnectionError("Error sending '{}' over SCL.".format(
+            raise ConnectionError("Error sending \"{}\" over SCL.".format(
                 message))
         
         # async tracking?
@@ -175,3 +194,74 @@ class ServiceLevelConnection:
             return fut
 
         return None
+
+class RemotePhone:
+    """Acts as a proxy to a remote AG (Audio Gateway).
+    """
+
+    def __init__(self, connection, io_loop):
+        # serial connection helper
+        self._connection = connection
+        connection.on_close = self._connection_close
+        connection.on_error = self._connection_error
+        connection.on_message = self._connection_message
+
+        # public events
+        self.on_handshake_complete = None
+
+        # other
+        self._ag_features = None
+        self.io_loop = io_loop
+
+        # kick-off handshake
+        self.io_loop.add_callback(self._do_handshake)
+
+    def _connection_close(self):
+        """Called when serial connection is closed.
+        """
+        self._connection = None
+
+    def _connection_error(self):
+        """Called when AG reports that an error occurred.
+        """
+        pass
+
+    def _connection_message(self, code, data):
+        """Called when AG sends us a message.
+        """
+        logger.debug("Received message {}{}".format(
+            code, " - "+data if data else ""))
+
+    @coroutine
+    def _do_handshake(self):
+        """Performs a handshake with the AG.
+        """
+        try:
+
+            # features
+            self._ag_features = yield self._connection.send_message(
+                message="AT+BRSF={}".format(HF_FEATURES),
+                async_reply_code="BRSF")
+            logger.debug("BRSF response = {}".format(self._ag_features))
+            if not self._ag_features["WIDE_BAND"]:
+                logger.info("Device does not support HQ audio.")
+                if self._connection:
+                    self._connection.close()
+                return
+
+            # indicators
+            response = yield self._connection.send_message(
+                message="AT+CIND=?",
+                async_reply_code="CIND")
+            logger.debug("CIND=? response = {}".format(response))
+            
+        except TimeoutError as e:
+            logger.warning("HFP handshake error - {}".format(e))
+            if self._connection:
+                self._connection.close()
+            return
+
+        # handshake is complete
+        logger.debug("HFP handshake is complete.")
+        if self.on_handshake_complete:
+            self.on_handshake_complete()
