@@ -56,6 +56,9 @@ class BaseAdapter:
 
         self._started = True
         self.io_loop.add_callback(callback=self._check_adapter_available)
+        logger.debug("Checking for '{}' bluetooth adapter...".format(
+            self._preferred_address if self._preferred_address \
+            else "first available"))
 
     def stop(self):
         """Stops interaction with bluez. If already stopped, this does nothing.
@@ -134,10 +137,6 @@ class BaseAdapter:
             return
 
         try:
-            logger.debug("Checking for '{}' bluetooth adapter...".format(
-                self._preferred_address if self._preferred_address \
-                else "first available"))
-
             # get first or preferred BT adapter
             if len(self._known_adapters) == 0:
                 # this will kick-start the property change signals
@@ -163,8 +162,6 @@ class BaseAdapter:
                     adapter.get("Name"),
                     adapter.get("Address")))
                 self._adapter_proxy = adapter
-            else:
-                logger.debug("No change in adapter status.")
             if (is_found or is_lost) and self.on_connected_changed:
                 self._connected = is_found
                 self.io_loop.add_callback(
