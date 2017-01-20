@@ -5,7 +5,7 @@ https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 import logging
 import os
 
-from dbus import Byte, ByteArray
+from dbus import Array, Byte
 import dbus.service
 
 from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
@@ -31,7 +31,7 @@ class Media:
             {
                 "UUID": uuid,
                 "Codec": Byte(codec),
-                "Capabilities": ByteArray(capabilities)
+                "Capabilities": Array(capabilities, signature="y")
             })
 
     def unregister(self, dbus_path):
@@ -69,7 +69,7 @@ class MediaEndpoint(dbus.service.Object):
         try:
             self._transport = MediaTransport(
                 system_bus=self._system_bus,
-                transport_path=transport)
+                dbus_path=transport)
         except Exception as ex:
             logger.exception("Error fetching media transport.")
             if self.on_transport_setup_error:

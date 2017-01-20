@@ -178,7 +178,7 @@ class BaseAdapter:
             delay=self.retry_interval,
             callback=self._check_adapter_available)
 
-    def _propertieschanged(self, interface, path, changed, invalidated):
+    def _propertieschanged(self, interface, changed, invalidated, path):
         """Fired by the system bus subscription when a Bluez5 object property
         changes.
         """

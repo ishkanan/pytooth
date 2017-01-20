@@ -159,7 +159,7 @@ class MediaManager:
         self._unregister(adapter)
         self._connections.pop(adapter)
 
-    def _player_properties_changed(self, interface, path, changed, invalidated):
+    def _player_properties_changed(self, interface, changed, invalidated, path):
         """Fired by the system bus subscription when a Bluez5 object property
         changes.
         """
@@ -187,10 +187,10 @@ class MediaManager:
             return
 
         # streaming status update
-        if "Status" in params[1]:
+        if "Status" in changed:
             self._update_stream_status(
                 adapter=adapter,
-                status=params[1]["Status"])
+                status=changed["Status"])
 
     def _update_stream_status(self, adapter, status):
         """Performs actions based on newly-received streaming status.

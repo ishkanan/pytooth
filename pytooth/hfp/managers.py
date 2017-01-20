@@ -8,7 +8,7 @@ from dbus import UInt16
 from tornado.ioloop import IOLoop
 
 from pytooth.bluez5.dbus import Profile
-from pytooth.bluez5.helpers import Bluez5Utils, to_python_types
+from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
                                     HF_FEATURES
