@@ -36,25 +36,6 @@ def dbus_to_py(obj):
         return _dtop_type_map[obj.__class__](obj)
     return obj
 
-def to_python_types(f):
-    """Decorator to recursively convert a dbus-python object to native
-    Python types. If a type is not mapped, it will be returned as-is.
-    """
-
-    # NOTE: this doesn't work as dbus-python needs an exact method signature
-    # apparently, so maybe figure out another way? Maybe patch the dbus
-    # method decorator directly?
-    def decorated(*args, **kwargs):
-        new_args = [dbus_to_py(a) for a in args]
-        new_kwargs = dict([(k, dbus_to_py(v)) for k, v in kwargs.items()])
-
-        try:
-            return f(*new_args, **new_kwargs)
-        except Exception as e:
-            print(e)
-
-    return decorated
-
 class DBusProxy:
     """Helper class that combines a method proxy object and a property proxy
     object.
