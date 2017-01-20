@@ -178,7 +178,7 @@ class BaseAdapter:
             delay=self.retry_interval,
             callback=self._check_adapter_available)
 
-    def _propertieschanged(self, interface, changed, invalidated, path):
+    def _propertieschanged(self, interface, path, changed, invalidated):
         """Fired by the system bus subscription when a Bluez5 object property
         changes.
         """
@@ -186,9 +186,9 @@ class BaseAdapter:
             return
 
         interface = dbus_to_py(interface)
+        path = dbus_to_py(path)
         changed = dbus_to_py(changed)
         invalidated = dbus_to_py(invalidated)
-        path = dbus_to_py(path)
 
         logger.debug("SIGNAL: interface={}, path={}, changed={}, "
             "invalidated={}".format(interface, path, changed, invalidated))

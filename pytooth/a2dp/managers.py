@@ -12,7 +12,7 @@ from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     SBC_CODEC, \
                                     SBC_CONFIGURATION
 from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
-from pytooth.bluez5.helpers import Bluez5Utils, to_python_types
+from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
 
 logger = logging.getLogger("a2dp/"+__name__)
 
@@ -128,7 +128,7 @@ class MediaManager:
         # subscribe to property changes
         system_bus.add_signal_receiver(
             handler_function=self._player_properties_changed,
-            signal="PropertiesChanged",
+            signal_name="PropertiesChanged",
             dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
             arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
             path_keyword="path")
@@ -159,11 +159,15 @@ class MediaManager:
         self._unregister(adapter)
         self._connections.pop(adapter)
 
-    @to_python_types
     def _player_properties_changed(self, interface, path, changed, invalidated):
         """Fired by the system bus subscription when a Bluez5 object property
         changes.
         """
+
+        interface = dbus_to_py(interface)
+        path = dbus_to_py(path)
+        changed = dbus_to_py(changed)
+        invalidated = dbus_to_py(invalidated)
 
         # ignore the frequent single "position" updates
         if len(changed) == 1 and "Position" in changed:
