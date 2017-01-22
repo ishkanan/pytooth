@@ -1,8 +1,8 @@
 """Defines objects that provide high-level control of key HFP functions.
 """
 
-from functools import partial
 import logging
+from socket import AF_BLUETOOTH, BTPROTO_SCO, SOCK_SEQPACKET, socket
 
 from dbus import UInt16
 from tornado.ioloop import IOLoop
@@ -131,3 +131,91 @@ class ProfileManager:
             self.stop()
             if self.on_unexpected_stop:
                 self.on_unexpected_stop()
+
+class MediaManager:
+    """Manages an SCO audio connections with bluez5. Ensures a socket is always
+    listening.
+    """
+
+    def __init__(self):
+        # public events
+
+        # socket
+        self.io_loop = IOLoop.instance()
+        self._socket = None
+        self._stream = None
+
+        # other
+        self._started = False
+
+    def start(self):
+        """Starts the manager. If already started, this does nothing.
+        """
+        if self._started:
+            return
+
+        self._sco_listen()
+        self._started = True
+
+    def stop(self):
+        """Stops the manager. If already stopped, this does nothing.
+        """
+        if not self._started:
+            return
+
+        self._started = False
+        self._sco_close()
+
+    def _sco_listen(self):
+        """Helper to set up a listening SCO socket.
+        """
+        try:
+            # raw socket
+            sock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)
+            sock.setblocking(0)
+            sock.bind("00:00:00:00:00:00")
+            sock.listen(1)
+            self._socket = sock
+
+            # stream reader
+            self._stream = IOStream(socket=self._socket)
+            self._stream.set_close_callback(self._on_close)
+            self._stream.read_until_close(
+                streaming_callback=self._data_ready)
+
+            # connection accepter
+            self.io_loop.add_handler(
+                sock.fileno(),
+                self._connection_ready,
+                IOLoop.READ)
+        except Exception:
+            self._sco_close()
+            raise
+
+    def _sco_close(self):
+        """Helper to close an SCO socket.
+        """
+        try:
+            if self._socket:
+                self._socket.close()
+        except Exception:
+            logger.warning("Socket cleanup error.")
+        finally:
+            self._socket = None
+            self._stream
+
+    def _on_close(self, *args):
+        """The connection was closed by either side.
+        """
+        self._stream = None
+
+        if self.on_close:
+            self.on_close()
+
+    def _connection_ready(fd, events):
+        """Callback for a new connection.
+        """
+
+    def _data_ready(self, data):
+        """Parses data that has been received over the serial connection.
+        """
