@@ -12,7 +12,8 @@ from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
                                     HF_FEATURES
-from pytooth.hfp.helpers import RemotePhone, SerialPortConnection
+from pytooth.hfp.helpers import SerialPortConnection
+from pytooth.hfp.proxy import RemotePhone
 
 logger = logging.getLogger("hfp/"+__name__)
 
