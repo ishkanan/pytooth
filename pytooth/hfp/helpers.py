@@ -205,7 +205,7 @@ class SerialPortConnection:
 
         return {
             "3WAY": (params & 0x0001) == 0x0001,
-            "NREC": (params & 0x0002) == 0x0002,
+            "ECNR": (params & 0x0002) == 0x0002,
             "VOICE_RECOGNITION": (params & 0x0004) == 0x0004,
             "INBAND": (params & 0x0008) == 0x0008,
             "PHONE_VTAG": (params & 0x0010) == 0x0010,

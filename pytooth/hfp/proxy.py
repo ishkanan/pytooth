@@ -49,7 +49,8 @@ class RemotePhone:
 
     @coroutine
     def _do_handshake(self):
-        """Performs a handshake with the AG.
+        """Performs a handshake with the AG according to the spec, plus a few
+        other commands to set us up nicely.
         """
         try:
 
@@ -73,6 +74,9 @@ class RemotePhone:
                 
             # extended error handling
             yield self._send_and_wait("AT+CMEE=1", "OK")
+
+            # CLI
+            yield self._send_and_wait("AT+CLIP=1", "OK")
 
         except TimeoutError as e:
             logger.warning("HFP handshake error - {}".format(e))
