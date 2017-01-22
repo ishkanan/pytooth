@@ -127,9 +127,10 @@ class SerialPortConnection:
         logger.info("Serial port connection to AG was closed.")
 
         # error out any remaining futures
-        for item in self._reply_q.values():
-            item["future"].set_exception(
-                ConnectionError("Connection was closed."))
+        for lst in self._reply_q.values():
+            for item in lst:
+                item["future"].set_exception(
+                    ConnectionError("Connection was closed."))
         self._reply_q.clear()
 
         if self.on_close:
@@ -164,9 +165,9 @@ class SerialPortConnection:
             code, params = msg[1:].split(":", maxsplit=1)
 
             # shortcut to CME error reporting handler
-            if code == "CME":
+            if code == "CME ERROR":
                 if self.on_error:
-                    self.on_error(self._handle_cme(params))
+                    self.on_error(self._handle_cme_error(params))
                 return
 
             # find a handler function
@@ -189,9 +190,10 @@ class SerialPortConnection:
             try:
                 ret = handler(params=params.strip())
             except Exception as e:
+                logger.error("Handler threw unhandled exception - {}".format(e))
                 if qentry:
                     qentry["future"].set_exception(e)
-                raise
+                return
             if qentry:
                 qentry["future"].set_result(ret)
             else:
@@ -247,10 +249,19 @@ class SerialPortConnection:
         return dict([
             (self._indmap[i], val) for i, val in enumerate(params.split(","))])
 
-    def _handle_cme(self, params):
+    def _handle_cme_error(self, params):
         """Extended error code.
         """
-        return SerialPortConnection.CME_ERROR_MAP.get(params, params)
+        return SerialPortConnection.CME_ERROR_MAP.get(int(params), params)
+
+    def _handle_cops(self, params):
+        """Network operator query response.
+        """
+        params = params.split(",")
+        return {
+            "mode": params[0],
+            "name": params[2]
+        }
 
     def send_message(self, message, async_reply_code=None):
         """Sends a message. If async is not None, this returns a Future that can

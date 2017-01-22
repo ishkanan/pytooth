@@ -78,6 +78,10 @@ class RemotePhone:
             # CLI
             yield self._send_and_wait("AT+CLIP=1", "OK")
 
+            # network operator format
+            yield self._send_and_wait("AT+COPS=3,0", "OK")
+            self._connection.send_message("AT+COPS?")
+
         except TimeoutError as e:
             logger.warning("HFP handshake error - {}".format(e))
             if self._connection:
