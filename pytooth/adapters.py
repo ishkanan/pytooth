@@ -21,11 +21,15 @@ class BaseAdapter:
     def __init__(self, system_bus, io_loop, retry_interval, \
         preferred_address=None):
         
-        # subclass-accessible
+        # properties
         self._address = None
         self._connected = False
-        self._known_adapters = []
         self._last_address = None
+        self._last_path = None
+        self._path = None
+
+        # other
+        self._known_adapters = []
         self._preferred_address = preferred_address
         self._started = False
         
@@ -98,9 +102,14 @@ class BaseAdapter:
         """Returns the DBus object path of the connected adapter (if any), or
         None if no adapter is connected.
         """
-        if self._adapter_proxy:
-            return self._adapter_proxy.path
-        return None
+        return self._path
+
+    @property
+    def last_path(self):
+        """Returns the DBus object path of the last connected adapter (if any),
+        or None if no adapter has ever connected.
+        """
+        return self._last_path
 
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.
@@ -139,7 +148,7 @@ class BaseAdapter:
         repeatedly as it's the most reliable detection method.
         """
 
-        # break out of potentially infinite check loop
+        # infinite check loop breakout
         if not self._started:
             return
 
@@ -166,12 +175,15 @@ class BaseAdapter:
                 self._adapter_proxy = None
                 self._last_address = self._address
                 self._address = None
+                self._last_path = self._path
+                self._path = None
             elif is_found:
                 logger.info("Adapter '{} - {}' is available.".format(
                     adapter.get("Name"),
                     adapter.get("Address")))
                 self._adapter_proxy = adapter
                 self._address = self._adapter_proxy.get("Address")
+                self._path = self._adapter_proxy.path
             if (is_found or is_lost) and self.on_connected_changed:
                 self._connected = is_found
                 self.io_loop.add_callback(
@@ -257,12 +269,10 @@ class OpenPairableAdapter(BaseAdapter):
 
     def __repr__(self):
         return "<OpenPairableAdapter: {}>".format(
-            self.path if self.path else "N/A")
+            self.path if self.connected else self.last_path)
 
     def __str__(self):
-        return "<OpenPairableAdapter: {}>".format(
-            self.path if self.path else "N/A")
+        return self.__repr__()
 
     def __unicode__(self):
-        return "<OpenPairableAdapter: {}>".format(
-            self.path if self.path else "N/A")
+        return self.__repr__()

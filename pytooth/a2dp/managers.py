@@ -218,9 +218,9 @@ class MediaManager:
     def _unregister(self, adapter):
         """Unregisters a media endpoint from DBus.
         """
-        media = self._connections[adapter]["media"]
+        conn = self._connections[adapter]
         logger.debug("Unregistering media for adapter {}...".format(adapter))
-        media.unregister(endpoint.path)
+        conn["media"].unregister(conn["endpoint"].path)
         logger.debug("Unregistered media for adapter {}.".format(adapter))
 
     def _player_properties_changed(self, interface, changed, invalidated, path):
@@ -313,7 +313,7 @@ class MediaManager:
                 adapter=adapter,
                 error=error)
 
-    def _endpoint_transport_state_changed(self, adapter, transport, connected):
+    def _endpoint_transport_state_changed(self, adapter, transport, available):
         """Media transport path creation/teardown. This is different to stream
         start/stop.
         """
