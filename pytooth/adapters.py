@@ -176,7 +176,8 @@ class BaseAdapter:
                 self._connected = is_found
                 self.io_loop.add_callback(
                     callback=self.on_connected_changed,
-                    adapter=self)
+                    adapter=self,
+                    connected=self.connected)
 
         except Exception as e:
             logger.exception("Failed to get suitable adapter.")

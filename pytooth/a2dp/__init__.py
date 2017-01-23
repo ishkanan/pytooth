@@ -68,7 +68,7 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.stop()
-        self._mediamgr.stop()
+        self._mediamgr.stop(adapter=self._adapter)
         self._profilemgr.stop()
         self._started = False
 
@@ -104,7 +104,7 @@ class AdvancedAudioProfile:
             return
 
         try:
-            self._mediamgr.start()
+            self._mediamgr.start(adapter=self._adapter)
         except Exception:
             logger.exception("Error starting media manager. Retry in 15 "
                 "seconds.")
@@ -117,21 +117,42 @@ class AdvancedAudioProfile:
                     error="Error starting media manager.")
             return
 
-    def _adapter_connected_changed(self, adapter):
+    def set_discoverable(self, enabled, timeout=None):
+        """Set discoverable status.
+        """
+        self._adapter.set_discoverable(
+            enabled=enabled,
+            timeout=timeout)
+
+    def set_pairable(self, enabled, timeout=None):
+        """Set pairable status.
+        """
+        self._adapter.set_pairable(
+            enabled=enabled,
+            timeout=timeout)
+
+    def _adapter_connected_changed(self, adapter, connected):
         """Adapter connected or disconnected.
         """
-        if adapter.connected:
-            logger.info("Adapter '{}' has connected.".format(adapter.address))
+        if connected:
+            logger.info("Adapter '{}' has connected.".format(
+                adapter.address))
             
             # need at least one adapter before we can register a profile
             self._start_profile()
         else:
             logger.info("Adapter '{}' disconnected.".format(
                 adapter.last_address))
+
             try:
                 self._mediamgr.stop(adapter=adapter)
             except Exception:
                 logging.exception("Error releasing media connection.")
+
+            try:
+                self._profilemgr.stop()
+            except Exception:
+                logging.exception("Error unregistering profile.")
 
     def _adapter_properties_changed(self, adapter, props):
         """Adapter properties changed.
@@ -139,9 +160,6 @@ class AdvancedAudioProfile:
         logger.info("Adapter '{}' properties changed - {}".format(
             adapter.address,
             props))
-
-        if self.on_adapter_properties_changed:
-            self.on_adapter_properties_changed(adapter=adapter, props=props)
 
     def _media_setup_error(self, adapter, error):
         """Error starting media streaming.

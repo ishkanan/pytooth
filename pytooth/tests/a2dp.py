@@ -28,8 +28,8 @@ class TestApplication:
             retry_interval=config["retryinterval"],
             io_loop=IOLoop.instance())
         a2dp.on_device_connected_changed = self._device_connected_changed
-        a2dp.on_media_setup_error = self._
-        a2dp.on_media_stream_state_changed = self._media_streaming_state_changed
+        a2dp.on_media_setup_error = self._media_setup_error
+        a2dp.on_media_stream_state_changed = self._media_stream_state_changed
         a2dp.on_profile_status_changed = self._profile_status_changed
         self.a2dp = a2dp
 
@@ -42,10 +42,13 @@ class TestApplication:
         self.a2dp.set_pairable(enabled=False)
         self.a2dp.stop()
 
+    def _device_connected_changed(self, device, connected):
+        pass
+
     def _media_setup_error(self, adapter, error):
         pass
 
-    def _media_streaming_state_changed(self, adapter, transport, state):
+    def _media_stream_state_changed(self, adapter, transport, state):
         # we make sinks or destroy them...
         if state == "playing" and self.sink is None:
             self.sink = PortAudioSink(
@@ -60,5 +63,5 @@ class TestApplication:
 
     def _profile_status_changed(self, available):
         # be discoverable if profile is A-OK
-        adapter.set_discoverable(enabled=available)
-        adapter.set_pairable(enabled=available)
+        self.a2dp.set_discoverable(enabled=available)
+        self.a2dp.set_pairable(enabled=available)
