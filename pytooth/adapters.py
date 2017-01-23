@@ -22,9 +22,11 @@ class BaseAdapter:
         preferred_address=None):
         
         # subclass-accessible
-        self._preferred_address = preferred_address
+        self._address = None
         self._connected = False
         self._known_adapters = []
+        self._last_address = None
+        self._preferred_address = preferred_address
         self._started = False
         
         # events
@@ -76,9 +78,14 @@ class BaseAdapter:
         """Returns the address of the connected adapter (if any), or None if
         no adapter is connected.
         """
-        if self._adapter_proxy:
-            return self._adapter_proxy.get("Address")
-        return None
+        return self._address
+
+    @property
+    def last_address(self):
+        """Returns the address of the last connected adapter (if any), or None
+        no adapter has ever connected and disconnected.
+        """
+        return self._last_address
 
     @property
     def connected(self):
@@ -157,11 +164,14 @@ class BaseAdapter:
             if is_lost:
                 logger.info("No suitable adapter is available.")
                 self._adapter_proxy = None
+                self._last_address = self._address
+                self._address = None
             elif is_found:
                 logger.info("Adapter '{} - {}' is available.".format(
                     adapter.get("Name"),
                     adapter.get("Address")))
                 self._adapter_proxy = adapter
+                self._address = self._adapter_proxy.get("Address")
             if (is_found or is_lost) and self.on_connected_changed:
                 self._connected = is_found
                 self.io_loop.add_callback(

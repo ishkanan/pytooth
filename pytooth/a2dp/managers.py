@@ -31,8 +31,7 @@ class ProfileManager:
         self._system_bus = system_bus
 
         # events
-        self.on_connect = None
-        self.on_disconnect = None
+        self.on_connected_changed = None
         self.on_unexpected_stop = None
 
     def start(self):
@@ -40,7 +39,8 @@ class ProfileManager:
         """
         if self._started:
             return
-
+        
+        self._register()
         self._started = True
 
     def stop(self):
@@ -48,9 +48,14 @@ class ProfileManager:
         """
         if not self._started:
             return
-
+        
+        self._unregister()
         self._started = False
 
+    @property
+    def started(self):
+        return self._started
+        
     def _register(self):
         """Registers the profile implementation endpoint on DBus.
         """
@@ -87,16 +92,18 @@ class ProfileManager:
     def _profile_on_connect(self, device, fd, fd_properties):
         """New service-level connection has been established.
         """
-        if self.on_connect:
-            self.on_connect(
-                device=device)
+        if self.on_connected_changed:
+            self.on_connected_changed(
+                device=device,
+                connected=True)
 
     def _profile_on_disconnect(self, device):
         """Device is disconnected from profile.
         """
-        if self.on_disconnect:
-            self.on_disconnect(
-                device=device)
+        if self.on_connected_changed:
+            self.on_connected_changed(
+                device=device,
+                connected=False)
 
     def _profile_on_release(self):
         """Profile is unregistered.
@@ -117,10 +124,9 @@ class MediaManager:
         self._connections = {} # adapter: {media, endpoint}
         self._system_bus = system_bus
 
-        # events
-        self.on_streaming_state_changed = None
-        self.on_transport_connect = None
-        self.on_transport_disconnect = None
+        # public events
+        self.on_media_setup_error = None
+        self.on_stream_state_changed = None
         self.on_unexpected_release = None
 
         # subscribe to property changes
@@ -157,69 +163,10 @@ class MediaManager:
         self._unregister(adapter)
         self._connections.pop(adapter)
 
-    def _player_properties_changed(self, interface, changed, invalidated, path):
-        """Fired by the system bus subscription when a Bluez5 object property
-        changes.
-        """
-
-        interface = dbus_to_py(interface)
-        path = dbus_to_py(path)
-        changed = dbus_to_py(changed)
-        invalidated = dbus_to_py(invalidated)
-
-        # ignore the frequent single "position" updates
-        if len(changed) == 1 and "Position" in changed:
-            return
-
-        logger.debug("SIGNAL: interface={}, path={}, changed={}, "
-            "invalidated={}".format(interface, path, changed, invalidated))
-
-        # get adapter object for access to context
-        adapter_path = "/org/bluez/"+path.split("/")[3]
-        adapter = None
-        for k, v in self._connections.items():
-            if k.path == adapter_path:
-                adapter = k
-        if adapter is None:
-            logger.debug("Adapter not tracked, ignoring signal.")
-            return
-
-        # streaming status update
-        if "Status" in changed:
-            self._update_stream_status(
-                adapter=adapter,
-                status=changed["Status"])
-
-    def _update_stream_status(self, adapter, status):
-        """Performs actions based on newly-received streaming status.
-        """
-        context = self._connections[adapter]
-        prev_status = context["streamstatus"]
-        context["streamstatus"] = status
-        transport = context["transport"]
-
-        # acquire the transport to begin receiving data
-        # note: we don't manually release it, that is done via a remote device
-        #       disconnect event
-        if not transport.acquired and status == "playing":
-            try:
-                transport.acquire()
-            except Exception:
-                logger.exception(args["error"])
-                if self.on_media_setup_error:
-                    self.on_media_setup_error(args["error"])
-        elif status in ["paused", "stopped"]:
-            # bluez5 has taken back ownership of the transport
-            # dirty hack, but watevs...
-            transport._acquired = False
-
-        # state update
-        if self.on_streaming_state_changed:
-            self.on_streaming_state_changed(
-                adapter=adapter,
-                transport=transport,
-                state=status)
-
+    @property
+    def started(self):
+        return self._started
+        
     def _register(self, adapter):
         """Registers a media endpoint on DBus.
         """
@@ -276,6 +223,71 @@ class MediaManager:
         media.unregister(endpoint.path)
         logger.debug("Unregistered media for adapter {}.".format(adapter))
 
+    def _player_properties_changed(self, interface, changed, invalidated, path):
+        """Fired by the system bus subscription when a Bluez5 object property
+        changes.
+        """
+
+        interface = dbus_to_py(interface)
+        path = dbus_to_py(path)
+        changed = dbus_to_py(changed)
+        invalidated = dbus_to_py(invalidated)
+
+        # ignore the frequent single "position" updates
+        if len(changed) == 1 and "Position" in changed:
+            return
+
+        logger.debug("SIGNAL: interface={}, path={}, changed={}, "
+            "invalidated={}".format(interface, path, changed, invalidated))
+
+        # get adapter object for access to context
+        adapter_path = "/org/bluez/"+path.split("/")[3]
+        adapter = None
+        for k, v in self._connections.items():
+            if k.path == adapter_path:
+                adapter = k
+        if adapter is None:
+            logger.debug("Adapter not tracked, ignoring signal.")
+            return
+
+        # streaming status update
+        if "Status" in changed:
+            self._update_stream_status(
+                adapter=adapter,
+                status=changed["Status"])
+
+    def _update_stream_status(self, adapter, status):
+        """Performs actions based on newly-received streaming status.
+        """
+        context = self._connections[adapter]
+        prev_status = context["streamstatus"]
+        context["streamstatus"] = status
+        transport = context["transport"]
+
+        # acquire the transport to begin receiving data
+        # note: we don't manually release it, that is done via a remote device
+        #       disconnect event
+        if not transport.acquired and status == "playing":
+            try:
+                transport.acquire()
+            except Exception as e:
+                logger.exception(e)
+                if self.on_media_setup_error:
+                    self.on_media_setup_error(
+                        adapter=adapter,
+                        error="{}".format(e))
+        elif status in ["paused", "stopped"]:
+            # bluez5 has taken back ownership of the transport
+            # dirty hack, but watevs...
+            transport._acquired = False
+
+        # state update
+        if self.on_stream_state_changed:
+            self.on_stream_state_changed(
+                adapter=adapter,
+                transport=transport,
+                state=status)
+
     def _endpoint_release(self, adapter):
         """Endpoint release.
         """
@@ -293,24 +305,26 @@ class MediaManager:
             self.on_unexpected_release(adapter=adapter)
 
     def _endpoint_transport_setup_error(self, adapter, error):
-        """Media transport setup error.
+        """Media transport setup error. This is different to an acquisition
+        error.
         """
-        pass
+        if self.on_media_setup_error:
+            self.on_media_setup_error(
+                adapter=adapter,
+                error=error)
 
-    def _endpoint_transport_state_changed(self, adapter, transport, state):
-        """Media transport creation/teardown.
+    def _endpoint_transport_state_changed(self, adapter, transport, connected):
+        """Media transport path creation/teardown. This is different to stream
+        start/stop.
         """
         logger.debug("Media transport {} for adapter {} is {}.".format(
-            transport, adapter, state))
+            transport, adapter, "available" if available else "released"))
 
-        if state == "available":
+        if available:
             self._connections[adapter]["transport"] = transport
-            if self.on_transport_connect:
-                self.on_transport_connect(
+        else:
+            if self.on_stream_state_changed:
+                self.on_stream_state_changed(
                     adapter=adapter,
-                    transport=transport)
-        elif state == "released":
-            if self.on_transport_disconnect:
-                self.on_transport_disconnect(
-                    adapter=adapter,
-                    transport=transport)
+                    transport=transport,
+                    state="released")

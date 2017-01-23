@@ -18,39 +18,35 @@ class AdvancedAudioProfile:
         self._system_bus = system_bus
 
         # adapter
-        self._adapter = adapter_class(
+        adapter = adapter_class(
             system_bus=self._system_bus,
             io_loop=io_loop,
             *args,
             **kwargs)
-        self._adapter.on_connected_changed = self._adapter_connected_changed
-        self._adapter.on_properties_changed = self._adapter_properties_changed
+        adapter.on_connected_changed = self._adapter_connected_changed
+        adapter.on_properties_changed = self._adapter_properties_changed
+        self._adapter = adapter
 
         # profile plumber
-        self._profilemgr = ProfileManager(
+        pmgr = ProfileManager(
             system_bus=system_bus)
-        self._profilemgr.on_connect = self._profile_connect
-        self._profilemgr.on_disconnect = self._profile_disconnect
-        self._profilemgr.on_unexpected_stop = self._profile_unexpected_stop
+        pmgr.on_connected_changed = self._profile_connected_changed
+        pmgr.on_unexpected_stop = self._profile_unexpected_stop
+        self._profilemgr = pmgr
 
         # media plumber
-        self._mediamgr = MediaManager(
+        mmgr = MediaManager(
             system_bus=self._system_bus)
-        self._mediamgr.on_streaming_state_changed = \
-            self._streaming_state_changed
-        self._mediamgr.on_unexpected_release = \
-            self._media_unexpected_release
-        self._mediamgr.on_transport_connect = \
-            self._media_transport_connect
-        self._mediamgr.on_transport_disconnect = \
-            self._media_transport_disconnect
+        mmgr.on_media_setup_error = self._media_setup_error
+        mmgr.on_stream_state_changed = self._media_stream_state_changed
+        mmgr.on_unexpected_release = self._media_unexpected_release
+        self._mediamgr = mmgr
 
         # public events
-        self.on_adapter_connected_changed = None
-        self.on_adapter_properties_changed = None
-        self.on_media_transport_connect = None
-        self.on_media_transport_disconnect = None
-        self.on_streaming_state_changed = None
+        self.on_device_connected_changed = None
+        self.on_media_setup_error = None
+        self.on_media_stream_state_changed = None
+        self.on_profile_status_changed = None
 
         # other
         self.io_loop = io_loop
@@ -72,8 +68,54 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.stop()
+        self._mediamgr.stop()
         self._profilemgr.stop()
         self._started = False
+
+    def _start_profile(self):
+        """Helper to start the profile manager. Suitable for retry loops.
+        """
+        # to avoid infinite retry loop
+        if not self._started:
+            return
+
+        try:
+            do_event = not self._profilemgr.started
+            self._profilemgr.start()
+        except Exception:
+            logger.exception("Error starting profile. Retry in 15 seconds.")
+            self.io_loop.call_later(
+                delay=15,
+                callback=self._start_profile)
+            return
+
+        # only raise event once per start/stop cycle
+        if do_event and self.on_profile_status_changed:
+            self.on_profile_status_changed(available=True)
+
+        # now start media manager
+        self._start_media()
+
+    def _start_media(self):
+        """Helper to start the media manager. Suitable for retry loops.
+        """
+        # to avoid infinte retry loop
+        if not self._started:
+            return
+
+        try:
+            self._mediamgr.start()
+        except Exception:
+            logger.exception("Error starting media manager. Retry in 15 "
+                "seconds.")
+            self.io_loop.call_later(
+                delay=15,
+                callback=self._start_media)
+            if self.on_media_setup_error:
+                self.on_media_setup_error(
+                    adapter=None,
+                    error="Error starting media manager.")
+            return
 
     def _adapter_connected_changed(self, adapter):
         """Adapter connected or disconnected.
@@ -81,22 +123,15 @@ class AdvancedAudioProfile:
         if adapter.connected:
             logger.info("Adapter '{}' has connected.".format(adapter.address))
             
-            # start profile now after org name has been registered on DBus
-            self._profilemgr.start()
-            try:
-                self._mediamgr.start(adapter=adapter)
-            except Exception:
-                logging.exception("Error establishing media connection.")
+            # need at least one adapter before we can register a profile
+            self._start_profile()
         else:
-            logger.info("Adapter disconnected.")
+            logger.info("Adapter '{}' disconnected.".format(
+                adapter.last_address))
             try:
                 self._mediamgr.stop(adapter=adapter)
             except Exception:
                 logging.exception("Error releasing media connection.")
-
-        # pass up
-        if self.on_adapter_connected_changed:
-            self.on_adapter_connected_changed(adapter=adapter)
 
     def _adapter_properties_changed(self, adapter, props):
         """Adapter properties changed.
@@ -108,73 +143,53 @@ class AdvancedAudioProfile:
         if self.on_adapter_properties_changed:
             self.on_adapter_properties_changed(adapter=adapter, props=props)
 
-    def _profile_connect(self, device):
-        """New service-level connection has been established.
+    def _media_setup_error(self, adapter, error):
+        """Error starting media streaming.
         """
-        logger.debug("Device connected.")
-
-    def _profile_disconnect(self, device):
-        """Device is disconnected from profile.
-        """
-        logger.debug("Device disconnected.")
-
-    def _profile_unexpected_stop(self):
-        """Profile was unregistered without our knowledge.
-        """
-        logger.debug("Profile unexpectedly unregistered. Attempting re-register"
-            " in 15 seconds...")
-        self.io_loop.call_later(
-            delay=15,
-            callback=self._profilemgr.start)
-
-    def _media_unexpected_release(self, adapter):
-        """Unexpected endpoint release.
-        """
-        logger.debug("Media endpoint unexpectedly released on adapter {}."
-            "".format(adapter))
-
-    def _media_transport_connect(self, adapter, transport):
-        """Media streaming path available. Does not imply streaming has started.
-        """
-        logger.debug("Media streaming path {} is available on adapter {}."
-            "".format(transport, adapter))
-
-        if self.on_media_transport_connect:
-            self.on_media_transport_connect(
+        if self.on_media_setup_error:
+            self.on_media_setup_error(
                 adapter=adapter,
-                transport=transport)
+                error=error)
 
-    def _media_transport_disconnect(self, adapter, transport):
-        """Media streaming path released.
+    def _media_stream_state_changed(self, adapter, transport, state):
+        """Streaming state has changed (stopped, paused, playing).
         """
-        logger.debug("Media streaming path {} is released on adapter {}."
-            "".format(transport, adapter))
-
-        if self.on_media_transport_disconnect:
-            self.on_media_transport_disconnect(
-                adapter=adapter,
-                transport=transport)
-
-    def _streaming_state_changed(self, adapter, transport, state):
-        """Streaming state has changed.
-        """
-        logger.debug("Media streaming state for adapter {} is now {}.".format(
-            adapter, state))
-
-        if self.on_streaming_state_changed:
-            self.on_streaming_state_changed(
+        if self.on_media_stream_state_changed:
+            self.on_media_stream_state_changed(
                 adapter=adapter,
                 transport=transport,
                 state=state)
 
-    def set_discoverable(self, enabled, timeout=None):
-        """Toggles visibility of the BT subsystem to other searching BT devices.
-        Timeout is in seconds, or pass None for no timeout.
+    def _media_unexpected_release(self, adapter):
+        """Unexpected media endpoint release (something messing with Bluez5
+        perhaps).
         """
-        self._adapter.set_discoverable(enabled, timeout)
+        if self.on_media_setup_error:
+            self.on_media_setup_error(
+                adapter=adapter,
+                error="Lost media connection with Bluez5.")
 
-    def set_pairable(self, enabled, timeout=None):
-        """Makes the BT subsystem pairable with other BT devices. Timeout is
-        in seconds, or pass None for no timeout.
+    def _profile_connected_changed(self, device, connected):
+        """Service-level connection has been established or ended with a
+        remote device.
         """
-        self._adapter.set_pairable(enabled, timeout)
+        logger.debug("Device {} is now {}.".format(
+            device, "connected" if connected else "disconnected"))
+
+        if self.on_device_connected_changed:
+            self.on_device_connected_changed(
+                device=device,
+                connected=connected)
+
+    def _profile_unexpected_stop(self):
+        """Profile was unregistered without our knowledge (something messing
+        with Bluez5 perhaps).
+        """
+        logger.warning("Profile unexpectedly unregistered. Re-register attempt"
+            " in 15 seconds.")
+        self.io_loop.call_later(
+            delay=15,
+            callback=self._start_profile)
+
+        if self.on_profile_status_changed:
+            self.on_profile_status_changed(available=False)

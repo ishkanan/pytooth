@@ -80,7 +80,7 @@ class MediaEndpoint(dbus.service.Object):
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
                 transport=self._transport,
-                state="available")
+                available=True)
 
     @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
                          in_signature="ab", out_signature="ab")
@@ -106,7 +106,7 @@ class MediaEndpoint(dbus.service.Object):
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
                 transport=self._transport,
-                state="released")
+                available=False)
             self._transport = None
 
     @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
