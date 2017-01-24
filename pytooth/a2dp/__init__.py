@@ -59,6 +59,7 @@ class AdvancedAudioProfile:
             return
 
         self._adapter.start()
+        self._profilemgr.start()
         self._started = True
 
     def stop(self):
@@ -71,51 +72,6 @@ class AdvancedAudioProfile:
         self._mediamgr.stop(adapter=self._adapter)
         self._profilemgr.stop()
         self._started = False
-
-    def _start_profile(self):
-        """Helper to start the profile manager. Suitable for retry loops.
-        """
-        # to avoid infinite retry loop
-        if not self._started:
-            return
-
-        try:
-            do_event = not self._profilemgr.started
-            self._profilemgr.start()
-        except Exception:
-            logger.exception("Error starting profile. Retry in 15 seconds.")
-            self.io_loop.call_later(
-                delay=15,
-                callback=self._start_profile)
-            return
-
-        # only raise event once per start/stop cycle
-        if do_event and self.on_profile_status_changed:
-            self.on_profile_status_changed(available=True)
-
-        # now start media manager
-        self._start_media()
-
-    def _start_media(self):
-        """Helper to start the media manager. Suitable for retry loops.
-        """
-        # to avoid infinte retry loop
-        if not self._started:
-            return
-
-        try:
-            self._mediamgr.start(adapter=self._adapter)
-        except Exception:
-            logger.exception("Error starting media manager. Retry in 15 "
-                "seconds.")
-            self.io_loop.call_later(
-                delay=15,
-                callback=self._start_media)
-            if self.on_media_setup_error:
-                self.on_media_setup_error(
-                    adapter=None,
-                    error="Error starting media manager.")
-            return
 
     def set_discoverable(self, enabled, timeout=None):
         """Set discoverable status.
@@ -137,9 +93,15 @@ class AdvancedAudioProfile:
         if connected:
             logger.info("Adapter '{}' has connected.".format(
                 adapter.address))
-            
-            # need at least one adapter before we can register a profile
-            self._start_profile()
+
+            try:
+                self._mediamgr.start(adapter=self._adapter)
+            except Exception:
+                logger.exception("Error starting media manager.")
+                if self.on_media_setup_error:
+                    self.on_media_setup_error(
+                        adapter=None,
+                        error="Error starting media manager.")
         else:
             logger.info("Adapter '{}' disconnected.".format(
                 adapter.last_address))
@@ -203,11 +165,7 @@ class AdvancedAudioProfile:
         """Profile was unregistered without our knowledge (something messing
         with Bluez5 perhaps).
         """
-        logger.warning("Profile unexpectedly unregistered. Re-register attempt"
-            " in 15 seconds.")
-        self.io_loop.call_later(
-            delay=15,
-            callback=self._start_profile)
+        logger.error("Profile unexpectedly unregistered.")
 
         if self.on_profile_status_changed:
             self.on_profile_status_changed(available=False)
