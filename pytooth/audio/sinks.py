@@ -4,25 +4,25 @@ import pyaudio
 import struct
 import wave
 
-from pytooth.a2dp.decoders import SBCDecoder
-
-logger = logging.getLogger("a2dp/"+__name__)
+logger = logging.getLogger("audio/"+__name__)
 
 
-class FileSBCSink:
+class FileSink:
+    """Drives a generic decoder and writes the resulting WAV samples to a file.
+    """
 
-    def __init__(self, transport, filename):
-        # built-in SBC decoder
-        self._decoder = SBCDecoder(
-            libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0")
+    def __init__(self, decoder, fd, read_mtu, filename):
+        # attach to decoder
+        self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
         self._decoder.on_unhandled_error = self._unhandled_decoder_error
         self._decoder.on_wav_params_ready = self._wav_params_ready
         
         # other
+        self._fd = fd
         self._filename = filename
+        self._read_mtu = read_mtu
         self._started = False
-        self._transport = transport
 
     def start(self):
         """Starts the sink. If already started, this does nothing.
@@ -34,8 +34,8 @@ class FileSBCSink:
         self._wav_header_set = False
         self._started = True
         self._decoder.start(
-            fd=self._transport.fd,
-            read_mtu=self._transport.read_mtu)
+            fd=self._fd,
+            read_mtu=self._read_mtu)
 
     def stop(self):
         """Stops the sink. If already stopped, this does nothing.
@@ -92,14 +92,19 @@ class FileSBCSink:
         self._wav_header_set = True
 
     def _unhandled_decoder_error(self, error):
+        """Called when an unhandled decoder error occurs. The decoder is
+        automatically stopped.
+        """
         logger.critical("Unhandled decoder error - {}".format(error))
 
 class PortAudioSink:
+    """Drives a generic decoder and writes the resulting WAV samples to a
+    PortAudio stream.
+    """
 
-    def __init__(self, card_name, transport):
-        # built-in SBC decoder
-        self._decoder = SBCDecoder(
-            libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0")
+    def __init__(self, decoder, fd, read_mtu, card_name):
+        # attach to decoder
+        self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
         self._decoder.on_unhandled_error = self._unhandled_decoder_error
         self._decoder.on_wav_params_ready = self._wav_params_ready
@@ -122,8 +127,9 @@ class PortAudioSink:
             self._player.terminate()
 
         # other
+        self._fd = fd
+        self._read_mtu = read_mtu
         self._started = False
-        self._transport = transport
 
     def start(self):
         """Starts the sink. If already started, this does nothing.
@@ -138,8 +144,8 @@ class PortAudioSink:
         self._wav_header_set = False
         self._started = True
         self._decoder.start(
-            fd=self._transport.fd,
-            read_mtu=self._transport.read_mtu)
+            fd=self._fd,
+            read_mtu=self._read_mtu)
 
     def stop(self):
         """Stops the sink. If already stopped, this does nothing.

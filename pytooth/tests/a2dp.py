@@ -6,13 +6,16 @@ from tornado.ioloop import IOLoop
 
 import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
-from pytooth.a2dp.sinks import FileSBCSink, PortAudioSink
 from pytooth.adapters import OpenPairableAdapter
+from pytooth.audio.decoders import SBCDecoder
+from pytooth.audio.sinks import PortAudioSink
 
 logger = logging.getLogger("a2dp-test")
 
 
 class TestApplication:
+    """Test application for the A2DP profile.
+    """
 
     def __init__(self, config):
         # init
@@ -34,6 +37,7 @@ class TestApplication:
         self.a2dp = a2dp
 
     def start(self):
+        # let's go
         self.a2dp.start()
 
     def stop(self):
@@ -52,14 +56,17 @@ class TestApplication:
         # we make sinks or destroy them...
         if state == "playing" and self.sink is None:
             self.sink = PortAudioSink(
-                card_name="pulse",
-                transport=transport)
+                decoder=SBCDecoder(
+                    libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+                fd=transport.fd,
+                read_mtu=transport.read_mtu,
+                card_name="pulse")
             self.sink.start()
-            logger.info("Built new sink.")
+            logger.info("Built new PortAudio sink.")
         elif state == "released" and self.sink:
             self.sink.stop()
             self.sink = None
-            logger.info("Destroyed sink.")
+            logger.info("Destroyed PortAudio sink.")
 
     def _profile_status_changed(self, available):
         # be discoverable if profile is A-OK

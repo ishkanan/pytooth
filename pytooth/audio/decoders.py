@@ -5,7 +5,7 @@ import socket
 from threading import Thread
 from time import sleep
 
-logger = logging.getLogger("a2dp/"+__name__)
+logger = logging.getLogger("audio/"+__name__)
 
 
 class sbc_t(ct.Structure):
