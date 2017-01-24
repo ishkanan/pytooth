@@ -33,6 +33,7 @@ class TestApplication:
         a2dp.on_device_connected_changed = self._device_connected_changed
         a2dp.on_media_setup_error = self._media_setup_error
         a2dp.on_media_stream_state_changed = self._media_stream_state_changed
+        a2dp.on_media_track_changed = self._media_track_changed
         a2dp.on_profile_status_changed = self._profile_status_changed
         self.a2dp = a2dp
 
@@ -68,6 +69,10 @@ class TestApplication:
             self.sink = None
             logger.info("Destroyed PortAudio sink.")
 
+    def _media_track_changed(self, track):
+        # track changed
+        logger.info("Track changed - {}".format(track))
+        
     def _profile_status_changed(self, available):
         # be discoverable if profile is A-OK
         self.a2dp.set_discoverable(enabled=available)

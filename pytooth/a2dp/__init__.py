@@ -39,6 +39,7 @@ class AdvancedAudioProfile:
             system_bus=self._system_bus)
         mmgr.on_media_setup_error = self._media_setup_error
         mmgr.on_stream_state_changed = self._media_stream_state_changed
+        mmgr.on_track_changed = self._media_track_changed
         mmgr.on_unexpected_release = self._media_unexpected_release
         self._mediamgr = mmgr
 
@@ -46,6 +47,7 @@ class AdvancedAudioProfile:
         self.on_device_connected_changed = None
         self.on_media_setup_error = None
         self.on_media_stream_state_changed = None
+        self.on_media_track_changed = None
         self.on_profile_status_changed = None
 
         # other
@@ -140,6 +142,12 @@ class AdvancedAudioProfile:
                 transport=transport,
                 state=state)
 
+    def _media_track_changed(self, track):
+        """Streaming track has changed.
+        """
+        if self.on_media_track_changed:
+            self.on_media_track_changed(track=track)
+            
     def _media_unexpected_release(self, adapter):
         """Unexpected media endpoint release (something messing with Bluez5
         perhaps).

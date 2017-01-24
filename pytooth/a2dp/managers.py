@@ -128,6 +128,7 @@ class MediaManager:
         # public events
         self.on_media_setup_error = None
         self.on_stream_state_changed = None
+        self.on_track_changed = None
         self.on_unexpected_release = None
 
         # subscribe to property changes
@@ -251,6 +252,12 @@ class MediaManager:
             logger.debug("Adapter not tracked, ignoring signal.")
             return
 
+        # report back track update
+        if "Track" in changed:
+            if self.on_track_changed:
+                self.on_track_changed(
+                    track=changed["Track"])
+                
         # streaming status update
         if "Status" in changed:
             self._update_stream_status(
