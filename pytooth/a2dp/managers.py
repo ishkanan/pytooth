@@ -84,6 +84,7 @@ class ProfileManager:
         try:
             self._profilemgr_proxy.proxy.UnregisterProfile(
                 A2DP_DBUS_PROFILE_ENDPOINT)
+            logger.debug("Unregistered A2DP profile.")
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
@@ -219,9 +220,9 @@ class MediaManager:
         """Unregisters a media endpoint from DBus.
         """
         conn = self._connections[adapter]
-        logger.debug("Unregistering media for adapter {}...".format(adapter))
+        logger.debug("Unregistering media for adapter {} ...".format(adapter))
         conn["media"].unregister(conn["endpoint"].path)
-        logger.debug("Unregistered media for adapter {}.".format(adapter))
+        logger.debug("Unregistered media for adapter {}".format(adapter))
 
     def _player_properties_changed(self, interface, changed, invalidated, path):
         """Fired by the system bus subscription when a Bluez5 object property

@@ -74,8 +74,14 @@ class BaseAdapter:
 
         self._started = False
         self._known_adapters = []
-        self._connected = False
         self._adapter_proxy = None
+        
+        if self.connected:
+            self._last_address = self._address
+            self._address = None
+            self._last_path = self._path
+            self._path = None
+            self._connected = False
 
     @property
     def address(self):
