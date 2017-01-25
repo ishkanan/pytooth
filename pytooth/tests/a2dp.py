@@ -30,6 +30,7 @@ class TestApplication:
             preferred_address=config["preferredaddress"],
             retry_interval=config["retryinterval"],
             io_loop=IOLoop.instance())
+        a2dp.on_adapter_connected_changed = self._adapter_connected_changed
         a2dp.on_device_connected_changed = self._device_connected_changed
         a2dp.on_media_setup_error = self._media_setup_error
         a2dp.on_media_stream_state_changed = self._media_stream_state_changed
@@ -46,6 +47,11 @@ class TestApplication:
         self.a2dp.set_discoverable(enabled=False)
         self.a2dp.set_pairable(enabled=False)
         self.a2dp.stop()
+
+    def _adapter_connected_changed(self, adapter, connected):
+        # be discoverable if adapter is connected
+        self.a2dp.set_discoverable(enabled=connected)
+        self.a2dp.set_pairable(enabled=connected)
 
     def _device_connected_changed(self, device, connected):
         pass
@@ -74,6 +80,4 @@ class TestApplication:
         logger.info("Track changed - {}".format(track))
         
     def _profile_status_changed(self, available):
-        # be discoverable if profile is A-OK
-        self.a2dp.set_discoverable(enabled=available)
-        self.a2dp.set_pairable(enabled=available)
+        pass

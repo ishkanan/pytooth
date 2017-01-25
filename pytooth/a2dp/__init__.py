@@ -44,6 +44,7 @@ class AdvancedAudioProfile:
         self._mediamgr = mmgr
 
         # public events
+        self.on_adapter_connected_changed = None
         self.on_device_connected_changed = None
         self.on_media_setup_error = None
         self.on_media_stream_state_changed = None
@@ -117,6 +118,9 @@ class AdvancedAudioProfile:
                 self._profilemgr.stop()
             except Exception:
                 logging.exception("Error unregistering profile.")
+
+        if self.on_adapter_connected_changed:
+            self.on_adapter_connected_changed(adapter, connected)
 
     def _adapter_properties_changed(self, adapter, props):
         """Adapter properties changed.
