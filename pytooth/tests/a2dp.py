@@ -31,10 +31,10 @@ class TestApplication:
             retry_interval=config["retryinterval"],
             io_loop=IOLoop.instance())
         a2dp.on_adapter_connected_changed = self._adapter_connected_changed
+        a2dp.on_audio_setup_error = self._audio_setup_error
+        a2dp.on_audio_stream_state_changed = self._audio_stream_state_changed
+        a2dp.on_audio_track_changed = self._audio_track_changed
         a2dp.on_device_connected_changed = self._device_connected_changed
-        a2dp.on_media_setup_error = self._media_setup_error
-        a2dp.on_media_stream_state_changed = self._media_stream_state_changed
-        a2dp.on_media_track_changed = self._media_track_changed
         a2dp.on_profile_status_changed = self._profile_status_changed
         self.a2dp = a2dp
 
@@ -56,10 +56,10 @@ class TestApplication:
     def _device_connected_changed(self, device, connected):
         pass
 
-    def _media_setup_error(self, adapter, error):
+    def _audio_setup_error(self, adapter, error):
         pass
 
-    def _media_stream_state_changed(self, adapter, transport, state):
+    def _audio_stream_state_changed(self, adapter, transport, state):
         # we make sinks or destroy them...
         if state == "playing" and self.sink is None:
             self.sink = PortAudioSink(
@@ -75,7 +75,7 @@ class TestApplication:
             self.sink = None
             logger.info("Destroyed PortAudio sink.")
 
-    def _media_track_changed(self, track):
+    def _audio_track_changed(self, track):
         # track changed
         logger.info("Track changed - {}".format(track))
         

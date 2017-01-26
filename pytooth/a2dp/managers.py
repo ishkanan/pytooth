@@ -110,9 +110,10 @@ class ProfileManager:
         """Profile is unregistered.
         """
         # unexpected?
-        if self._started and self.on_unexpected_stop:
+        if self._started:
             self.stop()
-            self.on_unexpected_stop()
+            if self.on_unexpected_stop:
+                self.on_unexpected_stop()
 
 class MediaManager:
     """Manages media object interactions with bluez5. Can handle media

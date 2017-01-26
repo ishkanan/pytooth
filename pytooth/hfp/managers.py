@@ -1,6 +1,7 @@
 """Defines objects that provide high-level control of key HFP functions.
 """
 
+from functools import partial
 import logging
 from socket import AF_BLUETOOTH, BTPROTO_SCO, SOCK_SEQPACKET, socket
 
@@ -34,8 +35,7 @@ class ProfileManager:
         self.io_loop = IOLoop.instance()
 
         # events
-        self.on_connect = None
-        self.on_disconnect = None
+        self.on_connected_changed = None
         self.on_unexpected_stop = None
 
     def start(self):
@@ -111,17 +111,19 @@ class ProfileManager:
         phone = RemotePhone(
             connection=conn,
             io_loop=self.io_loop)
-        if self.on_connect:
-            self.on_connect(
+        if self.on_connected_changed:
+            self.on_connected_changed(
                 device=device,
+                connected=True,
                 phone=phone)
 
     def _profile_on_disconnect(self, device):
         """Device is disconnected from profile.
         """
-        if self.on_disconnect:
-            self.on_disconnect(
-                device=device)
+        if self.on_connected_changed:
+            self.on_connected_changed(
+                device=device,
+                connected=False)
 
     def _profile_on_release(self):
         """Profile is unregistered.
@@ -133,89 +135,93 @@ class ProfileManager:
                 self.on_unexpected_stop()
 
 class MediaManager:
-    """Manages an SCO audio connections with bluez5. Ensures a socket is always
-    listening.
+    """Manages SCO audio connections with bluez5. When a connection is
+    received, stop() is internally called. The caller must call start() again
+    when suitable to accept a new connection. Can handle media connections via
+    multiple adapters.
     """
 
     def __init__(self):
-        # public events
-
         # socket
-        self.io_loop = IOLoop.instance()
-        self._socket = None
-        self._stream = None
+        self._connections = {} # adapter: {socket, loophandle}
 
-        # other
-        self._started = False
+        # public events
+        self.on_media_connected = None
+        self.on_media_setup_error = None
 
-    def start(self):
-        """Starts the manager. If already started, this does nothing.
+    def start(self, adapter):
+        """Begins listening for a media connection via specified adapter. If
+        already listening on specified adapter, this does nothing.
         """
-        if self._started:
+        if adapter in self._connections:
             return
 
-        self._sco_listen()
-        self._started = True
+        socket, loophandle = self._sco_listen()
+        self._connections.update({
+            adapter: {
+                "socket": socket,
+                "loophandle": loophandle
+            }})
 
-    def stop(self):
-        """Stops the manager. If already stopped, this does nothing.
+    def stop(self, adapter):
+        """Stops listening for a media connection via specified adapter. If
+        not listening on specified adapter, this does nothing.
         """
-        if not self._started:
+        if adapter not in self._connections:
             return
 
-        self._started = False
-        self._sco_close()
+        self._sco_close(adapter)
+        self._connections.pop(adapter)
 
-    def _sco_listen(self):
+    def _sco_listen(self, adapter):
         """Helper to set up a listening SCO socket.
         """
         try:
             # raw socket
             sock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)
             sock.setblocking(0)
-            sock.bind("00:00:00:00:00:00")
+            sock.bind(adapter.address)
             sock.listen(1)
-            self._socket = sock
-
-            # stream reader
-            self._stream = IOStream(socket=self._socket)
-            self._stream.set_close_callback(self._on_close)
-            self._stream.read_until_close(
-                streaming_callback=self._data_ready)
 
             # connection accepter
-            self.io_loop.add_handler(
+            handle = self.io_loop.add_handler(
                 sock.fileno(),
-                self._connection_ready,
+                partial(self._connection_ready, adapter=adapter),
                 IOLoop.READ)
+
+            return socket, handle
         except Exception:
             self._sco_close()
             raise
 
-    def _sco_close(self):
+    def _sco_close(self, adapter):
         """Helper to close an SCO socket.
         """
         try:
-            if self._socket:
-                self._socket.close()
+            socket = self._connections[adapter]["socket"]
+            handle = self._connections[adapter]["loophandle"]
+            socket.close()
         except Exception:
-            logger.warning("Socket cleanup error.")
+            logger.exception("Socket cleanup error.")
         finally:
             self._socket = None
-            self._stream
+            self._stream = None
 
-    def _on_close(self, *args):
-        """The connection was closed by either side.
-        """
-        self._stream = None
-
-        if self.on_close:
-            self.on_close()
-
-    def _connection_ready(fd, events):
+    def _connection_ready(self, adapter, fd, events):
         """Callback for a new connection.
         """
+        try:
+            (connection, peer) = self._socket.accept()
+        except Exception:
+            lo
+        logger.info("Accepted SCO audio connection from {} via adapter {}"
+            "".format(peer, adapter))
+        
+        # caller to start listening again
+        self.stop(adapter)
 
-    def _data_ready(self, data):
-        """Parses data that has been received over the serial connection.
-        """
+        if self.on_media_connected:
+            self.on_media_connected(
+                adapter=adapter,
+                socket=connection,
+                peer=peer)

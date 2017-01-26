@@ -45,10 +45,10 @@ class AdvancedAudioProfile:
 
         # public events
         self.on_adapter_connected_changed = None
+        self.on_audio_setup_error = None
+        self.on_audio_stream_state_changed = None
+        self.on_audio_track_changed = None
         self.on_device_connected_changed = None
-        self.on_media_setup_error = None
-        self.on_media_stream_state_changed = None
-        self.on_media_track_changed = None
         self.on_profile_status_changed = None
 
         # other
@@ -101,8 +101,8 @@ class AdvancedAudioProfile:
                 self._mediamgr.start(adapter=self._adapter)
             except Exception:
                 logger.exception("Error starting media manager.")
-                if self.on_media_setup_error:
-                    self.on_media_setup_error(
+                if self.on_audio_setup_error:
+                    self.on_audio_setup_error(
                         adapter=None,
                         error="Error starting media manager.")
         else:
@@ -132,16 +132,16 @@ class AdvancedAudioProfile:
     def _media_setup_error(self, adapter, error):
         """Error starting media streaming.
         """
-        if self.on_media_setup_error:
-            self.on_media_setup_error(
+        if self.on_audio_setup_error:
+            self.on_audio_setup_error(
                 adapter=adapter,
                 error=error)
 
     def _media_stream_state_changed(self, adapter, transport, state):
         """Streaming state has changed (stopped, paused, playing).
         """
-        if self.on_media_stream_state_changed:
-            self.on_media_stream_state_changed(
+        if self.on_audio_stream_state_changed:
+            self.on_audio_stream_state_changed(
                 adapter=adapter,
                 transport=transport,
                 state=state)
@@ -149,15 +149,15 @@ class AdvancedAudioProfile:
     def _media_track_changed(self, track):
         """Streaming track has changed.
         """
-        if self.on_media_track_changed:
-            self.on_media_track_changed(track=track)
+        if self.on_audio_track_changed:
+            self.on_audio_track_changed(track=track)
             
     def _media_unexpected_release(self, adapter):
         """Unexpected media endpoint release (something messing with Bluez5
         perhaps).
         """
-        if self.on_media_setup_error:
-            self.on_media_setup_error(
+        if self.on_audio_setup_error:
+            self.on_audio_setup_error(
                 adapter=adapter,
                 error="Lost media connection with Bluez5.")
 
