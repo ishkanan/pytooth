@@ -143,7 +143,9 @@ class MediaManager:
 
     def __init__(self):
         # socket
-        self._connections = {} # adapter: {socket, loophandle}
+        self._connections = {} # adapter: {socket}
+
+        self.io_loop = IOLoop.instance()
 
         # public events
         self.on_media_connected = None
@@ -156,11 +158,10 @@ class MediaManager:
         if adapter in self._connections:
             return
 
-        socket, loophandle = self._sco_listen()
+        socket = self._sco_listen(adapter)
         self._connections.update({
             adapter: {
                 "socket": socket,
-                "loophandle": loophandle
             }})
 
     def stop(self, adapter):
@@ -176,46 +177,50 @@ class MediaManager:
     def _sco_listen(self, adapter):
         """Helper to set up a listening SCO socket.
         """
+        # raw socket
         try:
-            # raw socket
             sock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)
             sock.setblocking(0)
-            sock.bind(adapter.address)
+            sock.bind(adapter.address.encode())
             sock.listen(1)
-
-            # connection accepter
-            handle = self.io_loop.add_handler(
-                sock.fileno(),
-                partial(self._connection_ready, adapter=adapter),
-                IOLoop.READ)
-
-            return socket, handle
         except Exception:
-            self._sco_close()
+            sock.close()
             raise
+
+        # connection accepter
+        self.io_loop.add_handler(
+            sock.fileno(),
+            partial(self._connection_ready, adapter=adapter),
+            IOLoop.READ)
+
+        return socket
 
     def _sco_close(self, adapter):
         """Helper to close an SCO socket.
         """
         try:
-            socket = self._connections[adapter]["socket"]
-            handle = self._connections[adapter]["loophandle"]
-            socket.close()
+            self._connections[adapter]["socket"].close()
+        except KeyError:
+            logger.warning("_sco_close() called for adapter {}, but adapter "
+                "is not being tracked.".format(adapter))
         except Exception:
-            logger.exception("Socket cleanup error.")
-        finally:
-            self._socket = None
-            self._stream = None
+            logger.exception("Socket close error.")
 
     def _connection_ready(self, adapter, fd, events):
         """Callback for a new connection.
         """
         try:
-            (connection, peer) = self._socket.accept()
-        except Exception:
-            lo
-        logger.info("Accepted SCO audio connection from {} via adapter {}"
-            "".format(peer, adapter))
+            (socket, peer) = self._socket.accept()
+        except Exception as e:
+            logger.warning("SCO socket accept error - {}".format(e))
+            if self.on_media_setup_error:
+                self.on_media_setup_error(
+                    adapter=adapter,
+                    error=e)
+            return
+            
+        logger.info("New SCO audio connection from {} via adapter {}".format(
+            peer, adapter))
         
         # caller to start listening again
         self.stop(adapter)
@@ -223,5 +228,5 @@ class MediaManager:
         if self.on_media_connected:
             self.on_media_connected(
                 adapter=adapter,
-                socket=connection,
+                socket=socket,
                 peer=peer)

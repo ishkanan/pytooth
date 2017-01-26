@@ -53,9 +53,6 @@ class TestApplication:
         self.a2dp.set_discoverable(enabled=connected)
         self.a2dp.set_pairable(enabled=connected)
 
-    def _device_connected_changed(self, device, connected):
-        pass
-
     def _audio_setup_error(self, adapter, error):
         pass
 
@@ -79,5 +76,8 @@ class TestApplication:
         # track changed
         logger.info("Track changed - {}".format(track))
         
+    def _device_connected_changed(self, device, connected):
+        pass
+
     def _profile_status_changed(self, available):
         pass

@@ -1,7 +1,7 @@
 
 import logging
 
-from pytooth.hfp.managers import ProfileManager
+from pytooth.hfp.managers import MediaManager, ProfileManager
 from pytooth.bluez5.helpers import Bluez5Utils
 
 logger = logging.getLogger("hfp")
@@ -15,24 +15,34 @@ class HandsFreeProfile:
         self._system_bus = system_bus
 
         # adapter
-        self._adapter = adapter_class(
+        adapter = adapter_class(
             system_bus=self._system_bus,
             io_loop=io_loop,
             *args,
             **kwargs)
-        self._adapter.on_connected_changed = self._adapter_connected_changed
-        self._adapter.on_properties_changed = self._adapter_properties_changed
+        adapter.on_connected_changed = self._adapter_connected_changed
+        adapter.on_properties_changed = self._adapter_properties_changed
+        self._adapter = adapter
 
         # profile plumber
-        self._profilemgr = ProfileManager(
+        pmgr = ProfileManager(
             system_bus=system_bus)
-        self._profilemgr.on_connect = self._profile_connect
-        self._profilemgr.on_disconnect = self._profile_disconnect
-        self._profilemgr.on_unexpected_stop = self._profile_unexpected_stop
+        pmgr.on_connected_changed = self._profile_connected_changed
+        pmgr.on_unexpected_stop = self._profile_unexpected_stop
+        self._profilemgr = pmgr
+
+        # media plumber
+        mmgr = MediaManager()
+        mmgr.on_media_connected = self._media_connected
+        mmgr.on_media_setup_error = self._media_setup_error
+        self._mediamgr = mmgr
 
         # public events
         self.on_adapter_connected_changed = None
-        self.on_adapter_properties_changed = None
+        self.on_audio_connected = None
+        self.on_audio_setup_error = None
+        self.on_device_connected_changed = None
+        self.on_profile_status_changed = None
 
         # other
         self.io_loop = io_loop
@@ -45,6 +55,7 @@ class HandsFreeProfile:
             return
 
         self._adapter.start()
+        self._profilemgr.start()
         self._started = True
 
     def stop(self):
@@ -54,23 +65,50 @@ class HandsFreeProfile:
             return
 
         self._adapter.stop()
+        self._mediamgr.stop(adapter=self._adapter)
         self._profilemgr.stop()
         self._started = False
 
-    def _adapter_connected_changed(self, adapter):
+    def set_discoverable(self, enabled, timeout=None):
+        """Set discoverable status.
+        """
+        self._adapter.set_discoverable(
+            enabled=enabled,
+            timeout=timeout)
+
+    def set_pairable(self, enabled, timeout=None):
+        """Set pairable status.
+        """
+        self._adapter.set_pairable(
+            enabled=enabled,
+            timeout=timeout)
+    
+    def _adapter_connected_changed(self, adapter, connected):
         """Adapter connected or disconnected.
         """
-        if adapter.connected:
-            logger.info("Adapter '{}' has connected.".format(adapter.address))
-            
-            # start profile now after org name has been registered on DBus
-            self._profilemgr.start()
-        else:
-            logger.info("Adapter disconnected.")
+        if connected:
+            logger.info("Adapter '{}' has connected.".format(
+                adapter.address))
 
-        # pass up
+            try:
+                self._mediamgr.start(adapter=self._adapter)
+            except Exception:
+                logger.exception("Error starting media manager.")
+                if self.on_audio_setup_error:
+                    self.on_audio_setup_error(
+                        adapter=None,
+                        error="Error starting media manager.")
+        else:
+            logger.info("Adapter '{}' disconnected.".format(
+                adapter.last_address))
+
+            try:
+                self._mediamgr.stop(adapter=adapter)
+            except Exception:
+                logging.exception("Error stopping media manager.")
+
         if self.on_adapter_connected_changed:
-            self.on_adapter_connected_changed(adapter=adapter)
+            self.on_adapter_connected_changed(adapter, connected)
 
     def _adapter_properties_changed(self, adapter, props):
         """Adapter properties changed.
@@ -79,37 +117,40 @@ class HandsFreeProfile:
             adapter.address,
             props))
 
-        if self.on_adapter_properties_changed:
-            self.on_adapter_properties_changed(adapter=adapter, props=props)
-
-    def _profile_connect(self, device, phone):
-        """New service-level connection has been established.
+    def _media_connected(self, adapter, socket, peer):
+        """Peer has established an audio connection.
         """
-        logger.debug("Device connected.")
-        self.phone = phone
+        if self.on_audio_connected:
+            self.on_audio_connected(
+                adapter=adapter,
+                socket=socket,
+                peer=peer)
 
-    def _profile_disconnect(self, device):
-        """Device is disconnected from profile.
+    def _media_setup_error(self, adapter, error):
+        """Error starting media streaming.
         """
-        logger.debug("Device disconnected.")
+        if self.on_audio_setup_error:
+            self.on_audio_setup_error(
+                adapter=adapter,
+                error=error)
+
+    def _profile_connected_changed(self, device, connected):
+        """Service-level connection has been established or ended with a
+        remote device.
+        """
+        logger.debug("Device {} is now {}.".format(
+            device, "connected" if connected else "disconnected"))
+
+        if self.on_device_connected_changed:
+            self.on_device_connected_changed(
+                device=device,
+                connected=connected)
 
     def _profile_unexpected_stop(self):
-        """Profile was unregistered without our knowledge.
+        """Profile was unregistered without our knowledge (something messing
+        with Bluez5 perhaps).
         """
-        logger.debug("Profile unexpectedly unregistered. Attempting re-register"
-            " in 15 seconds...")
-        self.io_loop.call_later(
-            delay=15,
-            callback=self._profilemgr.start)
+        logger.error("Profile unexpectedly unregistered.")
 
-    def set_discoverable(self, enabled, timeout=None):
-        """Toggles visibility of the BT subsystem to other searching BT devices.
-        Timeout is in seconds, or pass None for no timeout.
-        """
-        self._adapter.set_discoverable(enabled, timeout)
-
-    def set_pairable(self, enabled, timeout=None):
-        """Makes the BT subsystem pairable with other BT devices. Timeout is
-        in seconds, or pass None for no timeout.
-        """
-        self._adapter.set_pairable(enabled, timeout)
+        if self.on_profile_status_changed:
+            self.on_profile_status_changed(available=False)

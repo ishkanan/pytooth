@@ -8,10 +8,7 @@ logger = logging.getLogger("a2dp")
 
 
 class AdvancedAudioProfile:
-    """Wraps up A2DP profile control via Bluez5 stack. Adapted from this Bluez4
-    example:
-
-    http://www.lightofdawn.org/wiki/wiki.cgi/BluezA2DP
+    """Wraps up A2DP profile control via Bluez5 stack.
     """
 
     def __init__(self, system_bus, adapter_class, io_loop, *args, **kwargs):
@@ -113,11 +110,6 @@ class AdvancedAudioProfile:
                 self._mediamgr.stop(adapter=adapter)
             except Exception:
                 logging.exception("Error releasing media connection.")
-
-            try:
-                self._profilemgr.stop()
-            except Exception:
-                logging.exception("Error unregistering profile.")
 
         if self.on_adapter_connected_changed:
             self.on_adapter_connected_changed(adapter, connected)
