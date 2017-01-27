@@ -62,7 +62,7 @@ class TestApplication:
             self.sink = PortAudioSink(
                 decoder=SBCDecoder(
                     libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-                fd=transport.fd,
+                socket_or_fd=transport.fd,
                 read_mtu=transport.read_mtu,
                 card_name="pulse")
             self.sink.start()

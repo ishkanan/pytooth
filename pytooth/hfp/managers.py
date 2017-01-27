@@ -159,6 +159,8 @@ class MediaManager:
             return
 
         socket = self._sco_listen(adapter)
+        logger.debug("Waiting for SCO audio connection on adapter {}".format(
+            adapter))
         self._connections.update({
             adapter: {
                 "socket": socket,
@@ -193,24 +195,26 @@ class MediaManager:
             partial(self._connection_ready, adapter=adapter),
             IOLoop.READ)
 
-        return socket
+        return sock
 
     def _sco_close(self, adapter):
         """Helper to close an SCO socket.
         """
         try:
-            self._connections[adapter]["socket"].close()
+            sock = self._connections[adapter]["socket"]
+            self.io_loop.remove_handler(sock.fileno())
+            sock.close()
         except KeyError:
             logger.warning("_sco_close() called for adapter {}, but adapter "
                 "is not being tracked.".format(adapter))
         except Exception:
             logger.exception("Socket close error.")
 
-    def _connection_ready(self, adapter, fd, events):
+    def _connection_ready(self, fd, events, adapter):
         """Callback for a new connection.
         """
         try:
-            (socket, peer) = self._socket.accept()
+            (socket, peer) = self._connections[adapter]["socket"].accept()
         except Exception as e:
             logger.warning("SCO socket accept error - {}".format(e))
             if self.on_media_setup_error:

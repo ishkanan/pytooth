@@ -11,7 +11,7 @@ class FileSink:
     """Drives a generic decoder and writes the resulting WAV samples to a file.
     """
 
-    def __init__(self, decoder, fd, read_mtu, filename):
+    def __init__(self, decoder, socket_or_fd, read_mtu, filename):
         # attach to decoder
         self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
@@ -19,7 +19,7 @@ class FileSink:
         self._decoder.on_wav_params_ready = self._wav_params_ready
         
         # other
-        self._fd = fd
+        self._socket_or_fd = socket_or_fd
         self._filename = filename
         self._read_mtu = read_mtu
         self._started = False
@@ -34,7 +34,7 @@ class FileSink:
         self._wav_header_set = False
         self._started = True
         self._decoder.start(
-            fd=self._fd,
+            socket_or_fd=self._socket_or_fd,
             read_mtu=self._read_mtu)
 
     def stop(self):
@@ -102,7 +102,7 @@ class PortAudioSink:
     PortAudio stream.
     """
 
-    def __init__(self, decoder, fd, read_mtu, card_name):
+    def __init__(self, decoder, socket_or_fd, read_mtu, card_name):
         # attach to decoder
         self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
@@ -127,7 +127,7 @@ class PortAudioSink:
             self._player.terminate()
 
         # other
-        self._fd = fd
+        self._socket_or_fd = socket_or_fd
         self._read_mtu = read_mtu
         self._started = False
 
@@ -144,7 +144,7 @@ class PortAudioSink:
         self._wav_header_set = False
         self._started = True
         self._decoder.start(
-            fd=self._fd,
+            socket_or_fd=self._socket_or_fd,
             read_mtu=self._read_mtu)
 
     def stop(self):

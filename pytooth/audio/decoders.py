@@ -68,7 +68,7 @@ class SBCDecoder:
         self._sbc = None
         self._sbc_populated = False
 
-    def start(self, fd, read_mtu):
+    def start(self, socket_or_fd, read_mtu):
         """Starts the decoder. If already started, this does nothing.
         """
         if self._started:
@@ -77,8 +77,14 @@ class SBCDecoder:
         self._read_mtu = read_mtu
         self._sbc = sbc_t()
         self._sbc_populated = False
-        self._socket = socket.socket(fileno=fd)
+
+        # did we get socket or fd?
+        self._socket = socket_or_fd
+        if isinstance(socket_or_fd, int):
+            logger.debug("SBCDecoder received fd, building socket...")
+            self._socket = socket.socket(fileno=socket_or_fd)
         self._socket.setblocking(True)
+
         self._worker = Thread(
             target=self._do_decode,
             name="SBCDecoder",

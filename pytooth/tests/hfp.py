@@ -57,8 +57,8 @@ class TestApplication:
         self.sink = PortAudioSink(
             decoder=SBCDecoder(
                 libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-            fd=transport.fd,
-            read_mtu=transport.read_mtu,
+            socket_or_fd=socket,
+            read_mtu=672,
             card_name="pulse")
         self.sink.start()
         logger.info("Built new PortAudio sink.")
