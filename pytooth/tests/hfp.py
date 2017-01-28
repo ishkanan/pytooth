@@ -8,7 +8,7 @@ import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.audio.decoders import SBCDecoder
-from pytooth.audio.sinks import PortAudioSink
+from pytooth.audio.sinks import DirectFileSink, PortAudioSink
 
 logger = logging.getLogger("hfp-test")
 
@@ -54,14 +54,18 @@ class TestApplication:
 
     def _audio_connected(self, adapter, socket, peer):
         # we make a sink
-        self.sink = PortAudioSink(
-            decoder=SBCDecoder(
-                libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+        # self.sink = PortAudioSink(
+        #     decoder=SBCDecoder(
+        #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+        #     socket_or_fd=socket,
+        #     read_mtu=672,
+        #     card_name="pulse")
+        #logger.info("Built new PortAudio sink.")
+        self.sink = DirectFileSink(
             socket_or_fd=socket,
-            read_mtu=672,
-            card_name="pulse")
+            filename="/home/vagrant/pytooth/raw_sco.out")
         self.sink.start()
-        logger.info("Built new PortAudio sink.")
+        logger.info("Built new DirectFileSink sink.")
 
     def _audio_setup_error(self, adapter, error):
         pass
