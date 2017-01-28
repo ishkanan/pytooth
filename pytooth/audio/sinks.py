@@ -1,13 +1,63 @@
 
 import logging
-import pyaudio
+from socket import socket
 import struct
 import wave
+
+import pyaudio
+from tornado.iostream import IOStream
 
 logger = logging.getLogger("audio/"+__name__)
 
 
-class FileSink:
+class DirectFileSink:
+    """Writes the packets to a file, byte for byte.
+    """
+
+    def __init__(self, socket_or_fd, filename):
+        self._socket_or_fd = socket_or_fd
+        self._filename = filename
+        self._started = False
+
+    def start(self):
+        """Starts the sink. If already started, this does nothing.
+        """
+        if self._started:
+            return
+
+        self._file = open(self._filename, 'wb')
+        self._socket = self._socket_or_fd
+        if isinstance(self._socket_or_fd, int):
+            self._socket = socket(fileno=self._socket_or_fd)
+        self._stream = IOStream(socket=self._socket)
+        self._stream.set_close_callback(self._on_close)
+        self._stream.read_until_close(
+            streaming_callback=self._data_ready)
+
+        self._started = True
+
+    def stop(self):
+        """Stops the sink. If already stopped, this does nothing.
+        """
+        if not self._started:
+            return
+
+        # file is clsoed in close callback
+        self._started = False
+        self._stream.close()
+
+    def _on_close(self, *args):
+        # socket has closed
+        if self._file:
+            self._file.close()
+            self._file = None
+
+    def _data_ready(self, data):
+        """Called when new data is ready.
+        """
+        self._file.write(data)
+
+class WAVFileSink:
     """Drives a generic decoder and writes the resulting WAV samples to a file.
     """
 
