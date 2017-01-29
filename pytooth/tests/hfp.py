@@ -70,8 +70,8 @@ class TestApplication:
     def _audio_setup_error(self, adapter, error):
         pass
 
-    def _device_connected_changed(self, device, connected):
-        pass
+    def _device_connected_changed(self, device, connected, phone):
+        self.phone = phone
 
     def _profile_status_changed(self, available):
         pass

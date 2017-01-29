@@ -134,7 +134,7 @@ class HandsFreeProfile:
                 adapter=adapter,
                 error=error)
 
-    def _profile_connected_changed(self, device, connected):
+    def _profile_connected_changed(self, device, connected, phone):
         """Service-level connection has been established or ended with a
         remote device.
         """
@@ -144,7 +144,8 @@ class HandsFreeProfile:
         if self.on_device_connected_changed:
             self.on_device_connected_changed(
                 device=device,
-                connected=connected)
+                connected=connected,
+                phone=phone)
 
     def _profile_unexpected_stop(self):
         """Profile was unregistered without our knowledge (something messing
