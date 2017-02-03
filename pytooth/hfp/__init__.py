@@ -117,13 +117,14 @@ class HandsFreeProfile:
             adapter.address,
             props))
 
-    def _media_connected(self, adapter, socket, peer):
+    def _media_connected(self, adapter, socket, mtu, peer):
         """Peer has established an audio connection.
         """
         if self.on_audio_connected:
             self.on_audio_connected(
                 adapter=adapter,
                 socket=socket,
+                mtu=mtu,
                 peer=peer)
 
     def _media_setup_error(self, adapter, error):

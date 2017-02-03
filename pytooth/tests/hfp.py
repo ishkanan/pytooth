@@ -52,13 +52,13 @@ class TestApplication:
         self.hfp.set_discoverable(enabled=connected)
         self.hfp.set_pairable(enabled=connected)
 
-    def _audio_connected(self, adapter, socket, peer):
+    def _audio_connected(self, adapter, socket, mtu, peer):
         # we make a sink
         # self.sink = PortAudioSink(
         #     decoder=SBCDecoder(
         #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
         #     socket_or_fd=socket,
-        #     read_mtu=672,
+        #     read_mtu=mtu,
         #     card_name="pulse")
         #logger.info("Built new PortAudio sink.")
         self.sink = DirectFileSink(

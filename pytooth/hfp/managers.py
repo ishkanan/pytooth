@@ -214,7 +214,7 @@ class MediaManager:
         """Callback for a new connection.
         """
         try:
-            (socket, peer) = self._connections[adapter]["socket"].accept()
+            (sock, peer) = self._connections[adapter]["socket"].accept()
         except Exception as e:
             logger.warning("SCO socket accept error - {}".format(e))
             if self.on_media_setup_error:
@@ -226,11 +226,27 @@ class MediaManager:
         logger.info("New SCO audio connection from {} via adapter {}".format(
             peer, adapter))
         
+        # get SCO MTU
+        # https://github.com/heinervdm/nohands/blob/d289c32aa843e46305d0d590640f56d5abdc0339/libhfp/hfp.cpp
+        # ScoGetParams function
+        try:
+            mtu = sock.getsockopt(17, 1)
+            logger.debug("SCO MTU = {}".format(mtu))
+        except Exception as e:
+            sock.close()
+            logger.warning("SCO MTU retrieve error - {}".format(e))
+            if self.on_media_setup_error:
+                self.on_media_setup_error(
+                    adapter=adapter,
+                    error=e)
+            return
+
         # caller to start listening again
         self.stop(adapter)
 
         if self.on_media_connected:
             self.on_media_connected(
                 adapter=adapter,
-                socket=socket,
+                socket=sock,
+                mtu=mtu,
                 peer=peer)
