@@ -7,7 +7,7 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.audio.decoders import SBCDecoder
+from pytooth.audio.decoders.sbc import SBCDecoder
 from pytooth.audio.sinks import PortAudioSink
 
 logger = logging.getLogger("a2dp-test")
@@ -64,6 +64,7 @@ class TestApplication:
                     libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
                 socket_or_fd=transport.fd,
                 read_mtu=transport.read_mtu,
+                has_rtp=True,
                 card_name="pulse")
             self.sink.start()
             logger.info("Built new PortAudio sink.")

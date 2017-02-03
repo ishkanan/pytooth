@@ -21,40 +21,40 @@ class sbc_t(ct.Structure):
         ("priv", ct.c_void_p),
         ("priv_alloc_base", ct.c_void_p)]
 
+SBC_MIN_FRAME_LEN = 11
+    
+SAMPLE_RATES = {
+    0: 16000,
+    1: 32000,
+    2: 44100,
+    3: 48000
+}
+
+CHANNELS = {
+    0: 1,
+    1: 2,
+    2: 2,
+    3: 2
+}
+
+CHANNEL_MODE = {
+    0: "Mono",
+    1: "DualChannel",
+    2: "Stereo",
+    3: "JointStereo"
+}
+
+SAMPLE_SIZES = {
+    0: 4,
+    1: 8,
+    2: 12,
+    3: 16
+}
+
 class SBCDecoder:
     """An asynchronous SBC decoder class. Requires libsbc. This is capable of
     stripping RTP headers (for A2DP and other profiles).
     """
-
-    SBC_MIN_FRAME_LEN = 11
-    
-    SAMPLE_RATES = {
-        0: 16000,
-        1: 32000,
-        2: 44100,
-        3: 48000
-    }
-
-    CHANNELS = {
-        0: 1,
-        1: 2,
-        2: 2,
-        3: 2
-    }
-
-    CHANNEL_MODE = {
-        0: "Mono",
-        1: "DualChannel",
-        2: "Stereo",
-        3: "JointStereo"
-    }
-
-    SAMPLE_SIZES = {
-        0: 4,
-        1: 8,
-        2: 12,
-        3: 16
-    }
 
     def __init__(self, libsbc_so_file):
         self._libsbc = ct.CDLL(libsbc_so_file)
@@ -107,25 +107,25 @@ class SBCDecoder:
     @property
     def channels(self):
         if self._started and self._sbc_populated:
-            return SBCDecoder.CHANNELS.get(self._sbc.mode)
+            return CHANNELS.get(self._sbc.mode)
         return None
     
     @property
     def channel_mode(self):
         if self._started and self._sbc_populated:
-            return SBCDecoder.CHANNEL_MODE.get(self._sbc.mode)
+            return CHANNEL_MODE.get(self._sbc.mode)
         return None
 
     @property
     def samplerate(self):
         if self._started and self._sbc_populated:
-            return SBCDecoder.SAMPLE_RATES.get(self._sbc.frequency)
+            return SAMPLE_RATES.get(self._sbc.frequency)
         return None
 
     @property
     def samplesize(self):
         if self._started and self._sbc_populated:
-            return SBCDecoder.SAMPLE_SIZES.get(self._sbc.blocks)
+            return SAMPLE_SIZES.get(self._sbc.blocks)
         return None
 
     def _do_decode(self):
@@ -216,7 +216,7 @@ class SBCDecoder:
                 if self.on_wav_params_ready:
                     self.on_wav_params_ready()
                 decode_bufsize = \
-                    int(bufsize / SBCDecoder.SBC_MIN_FRAME_LEN + 1) * \
+                    int(bufsize / SBC_MIN_FRAME_LEN + 1) * \
                     self._libsbc.sbc_get_codesize(ct.byref(self._sbc))
                 decode_buf = ct.create_string_buffer(decode_bufsize)
 

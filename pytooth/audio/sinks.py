@@ -152,7 +152,7 @@ class PortAudioSink:
     PortAudio stream.
     """
 
-    def __init__(self, decoder, socket_or_fd, read_mtu, card_name):
+    def __init__(self, decoder, socket_or_fd, read_mtu, has_rtp, card_name):
         # attach to decoder
         self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
@@ -179,6 +179,7 @@ class PortAudioSink:
         # other
         self._socket_or_fd = socket_or_fd
         self._read_mtu = read_mtu
+        self._has_rtp = has_rtp
         self._started = False
 
     def start(self):
@@ -195,7 +196,8 @@ class PortAudioSink:
         self._started = True
         self._decoder.start(
             socket_or_fd=self._socket_or_fd,
-            read_mtu=self._read_mtu)
+            read_mtu=self._read_mtu,
+            has_rtp=self._has_rtp)
 
     def stop(self):
         """Stops the sink. If already stopped, this does nothing.
