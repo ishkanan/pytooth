@@ -109,7 +109,7 @@ class WAVFileSink:
             return
 
         # pack bytes according to WAV header
-        n = int(self._decoder.channels * self._decoder.samplesize/8)
+        n = int(self._decoder.channels * self._decoder.sample_size/8)
         for i in range(0, len(data), n):
             # 1, 2 or 4 bytes
             if n == 1:
@@ -130,12 +130,12 @@ class WAVFileSink:
 
         logger.debug("Channels={}, Rate={}, BitsPerSample={}".format(
             self._decoder.channel_mode,
-            self._decoder.samplerate,
-            self._decoder.samplesize))
+            self._decoder.sample_rate,
+            self._decoder.sample_size))
         self._file.setparams((
             self._decoder.channels,
-            int(self._decoder.samplesize / 8),
-            self._decoder.samplerate,
+            int(self._decoder.sample_size / 8), # sample_size is in bits
+            self._decoder.sample_rate,
             0,
             "NONE",
             "not compressed"))

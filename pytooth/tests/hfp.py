@@ -7,8 +7,9 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.audio.decoders import SBCDecoder
-from pytooth.audio.sinks import DirectFileSink, PortAudioSink
+from pytooth.audio.decoders.sbc import SBCDecoder
+from pytooth.audio.decoders.sox import SoxDecoder
+from pytooth.audio.sinks import DirectFileSink, PortAudioSink, WAVFileSink
 
 logger = logging.getLogger("hfp-test")
 
@@ -46,6 +47,9 @@ class TestApplication:
         self.hfp.set_discoverable(enabled=False)
         self.hfp.set_pairable(enabled=False)
         self.hfp.stop()
+        if self.sink:
+            self.sink.stop()
+            self.sink = None
 
     def _adapter_connected_changed(self, adapter, connected):
         # be discoverable if adapter is connected
@@ -54,18 +58,29 @@ class TestApplication:
 
     def _audio_connected(self, adapter, socket, mtu, peer):
         # we make a sink
+
         # self.sink = PortAudioSink(
         #     decoder=SBCDecoder(
         #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
         #     socket_or_fd=socket,
         #     read_mtu=mtu,
         #     card_name="pulse")
-        #logger.info("Built new PortAudio sink.")
+
+        # self.sink = WAVFileSink(
+        #     decoder=SoxDecoder(
+        #         codec="cvsd",
+        #         out_channels=1,
+        #         out_samplerate=8000,
+        #         out_samplesize=8), # bits
+        #     socket_or_fd=socket,
+        #     read_mtu=mtu,
+        #     filename="/home/vagrant/pytooth/out.wav")
+
         self.sink = DirectFileSink(
             socket_or_fd=socket,
-            filename="/home/vagrant/pytooth/raw_sco.out")
+            filename="/home/vagrant/pytooth/out.cvsd")
         self.sink.start()
-        logger.info("Built new DirectFileSink sink.")
+        logger.info("Built new sink.")
 
     def _audio_setup_error(self, adapter, error):
         pass

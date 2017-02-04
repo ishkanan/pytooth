@@ -206,12 +206,18 @@ class SerialPortConnection:
         params = int(params)
 
         return {
-            "3WAY": (params & 0x0001) == 0x0001,
-            "ECNR": (params & 0x0002) == 0x0002,
-            "VOICE_RECOGNITION": (params & 0x0004) == 0x0004,
-            "INBAND": (params & 0x0008) == 0x0008,
-            "PHONE_VTAG": (params & 0x0010) == 0x0010,
-            "WIDE_BAND": (params & 0x0020) == 0x0020
+            "3WAY": (params & 0x1) == 0x1,
+            "ECNR": (params & 0x2) == 0x2,
+            "VOICE_RECOGNITION": (params & 0x4) == 0x4,
+            "INBAND_RING": (params & 0x8) == 0x8,
+            "PHONE_VTAG": (params & 0x10) == 0x10,
+            "CALL_REJECT": (params & 0x20) == 0x20,
+            "ECALL_STAT": (params & 0x40) == 0x40,
+            "ECALL_CTRL": (params & 0x80) == 0x80,
+            "EXTD_ERROR": (params & 0x100) == 0x100,
+            "CODEC_NEG": (params & 0x200) == 0x200,
+            "HF_INDICATORS": (params & 0x400) == 0x400,
+            "ESCO_S4T2": (params & 0x800) == 0x800
         }
 
     def _handle_chld(self, params):

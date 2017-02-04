@@ -61,6 +61,7 @@ class SBCDecoder:
         self._started = False
         self._worker = None
 
+        self.on_close = None
         self.on_data_ready = None
         self.on_unhandled_error = None
         self.on_wav_params_ready = None
@@ -69,13 +70,12 @@ class SBCDecoder:
         self._sbc = None
         self._sbc_populated = False
 
-    def start(self, socket_or_fd, read_mtu, has_rtp):
+    def start(self, socket_or_fd, read_mtu):
         """Starts the decoder. If already started, this does nothing.
         """
         if self._started:
             return
 
-        self._has_rtp = has_rtp
         self._read_mtu = read_mtu
         self._sbc = sbc_t()
         self._sbc_populated = False
@@ -117,19 +117,23 @@ class SBCDecoder:
         return None
 
     @property
-    def samplerate(self):
+    def sample_rate(self):
         if self._started and self._sbc_populated:
             return SAMPLE_RATES.get(self._sbc.frequency)
         return None
 
     @property
-    def samplesize(self):
+    def sample_size(self):
         if self._started and self._sbc_populated:
             return SAMPLE_SIZES.get(self._sbc.blocks)
         return None
 
     def _do_decode(self):
-        # run the decoder in a try/catch just in case something goes wrong
+        """Runs the decoder in a try/catch just in case something goes wrong.
+        """
+
+        unexpected_close = False
+
         try:
             self._worker_proc()
         except Exception as e:
@@ -138,9 +142,13 @@ class SBCDecoder:
             self._socket.close()
             if self.on_unhandled_error:
                 self.on_unhandled_error(error=e)
+            unexpected_close = True
         finally:
             logger.debug("sbc_finish will be called.")
             self._libsbc.sbc_finish(ct.byref(self._sbc), 0)
+
+        if unexpected_close and self.on_close:
+            self.on_close()
 
     def _worker_proc(self):
         """Does the decoding of SBC samples to WAV samples. Runs in an infinite
@@ -170,28 +178,26 @@ class SBCDecoder:
             if len(data) == 0:
                 continue
 
-            # RTP?
-            if self._has_rtp:
-                # out-of-order packet?
-                # note: we need to allow for 16-bit reset
-                seq = data[2] + (data[3] << 8)
-                if seq < prev_seq and prev_seq - seq <= 50:
-                    logger.debug("Skipping old packet - prev={}, seq={}".format(
-                        prev_seq, seq))
-                    continue
-                prev_seq = seq
+            # out-of-order packet?
+            # note: we need to allow for 16-bit reset
+            seq = data[2] + (data[3] << 8)
+            if seq < prev_seq and prev_seq - seq <= 50:
+                logger.debug("Skipping old packet - prev={}, seq={}".format(
+                    prev_seq, seq))
+                continue
+            prev_seq = seq
 
-                # strip RTP padding
-                has_padding = bool((data[0] & 0x04) >> 2)
-                if has_padding:
-                    num_pad_bytes = data[-1]
-                    logger.debug("Stripping {} RTP pad bytes.".format(
-                        num_pad_bytes))
-                    data = data[:-num_pad_bytes]
-            
-                # strip RTP
-                data = data[13:] # RTP header (12) + RTP payload (1)
-            
+            # strip RTP padding
+            has_padding = bool((data[0] & 0x04) >> 2)
+            if has_padding:
+                num_pad_bytes = data[-1]
+                logger.debug("Stripping {} RTP pad bytes.".format(
+                    num_pad_bytes))
+                data = data[:-num_pad_bytes]
+        
+            # strip RTP
+            data = data[13:] # RTP header (12) + RTP payload (1)
+        
             #logger.debug("Got {} bytes to decode.".format(len(data)))
             buf.value = data
             readlen = len(data)

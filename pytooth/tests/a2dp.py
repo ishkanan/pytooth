@@ -8,7 +8,7 @@ import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.audio.decoders.sbc import SBCDecoder
-from pytooth.audio.sinks import PortAudioSink
+from pytooth.audio.sinks import DirectFileSink, PortAudioSink
 
 logger = logging.getLogger("a2dp-test")
 
@@ -47,6 +47,9 @@ class TestApplication:
         self.a2dp.set_discoverable(enabled=False)
         self.a2dp.set_pairable(enabled=False)
         self.a2dp.stop()
+        if self.sink:
+            self.sink.stop()
+            self.sink = None
 
     def _adapter_connected_changed(self, adapter, connected):
         # be discoverable if adapter is connected
@@ -59,19 +62,21 @@ class TestApplication:
     def _audio_stream_state_changed(self, adapter, transport, state):
         # we make sinks or destroy them...
         if state == "playing" and self.sink is None:
-            self.sink = PortAudioSink(
-                decoder=SBCDecoder(
-                    libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+            # self.sink = PortAudioSink(
+            #     decoder=SBCDecoder(
+            #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+            #     socket_or_fd=transport.fd,
+            #     read_mtu=transport.read_mtu,
+            #     card_name="pulse")
+            self.sink = DirectFileSink(
                 socket_or_fd=transport.fd,
-                read_mtu=transport.read_mtu,
-                has_rtp=True,
-                card_name="pulse")
+                filename="/home/vagrant/pytooth/raw_a2dp.out")
             self.sink.start()
-            logger.info("Built new PortAudio sink.")
+            logger.info("Built new sink.")
         elif state == "released" and self.sink:
             self.sink.stop()
             self.sink = None
-            logger.info("Destroyed PortAudio sink.")
+            logger.info("Destroyed sink.")
 
     def _audio_track_changed(self, track):
         # track changed

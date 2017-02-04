@@ -12,7 +12,7 @@ from pytooth.bluez5.dbus import Profile
 from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.hfp.constants import HFP_PROFILE_UUID, \
                                     HFP_DBUS_PROFILE_ENDPOINT, \
-                                    HF_FEATURES
+                                    HF_SUPPORTED_FEATURES
 from pytooth.hfp.helpers import SerialPortConnection
 from pytooth.hfp.proxy import RemotePhone
 
@@ -77,7 +77,7 @@ class ProfileManager:
             {
                 "Name": "Hands-Free",
                 "Version": UInt16(0x0107),
-                "Features": UInt16(HF_FEATURES),
+                "Features": UInt16(HF_SUPPORTED_FEATURES),
                 "RequireAuthentication": True,
                 "RequireAuthorization": False,
             })

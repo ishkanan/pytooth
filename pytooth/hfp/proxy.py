@@ -3,7 +3,8 @@ import logging
 
 from tornado.gen import coroutine
 
-from pytooth.hfp.constants import HF_FEATURES
+from pytooth.errors import InvalidOperationError
+from pytooth.hfp.constants import HF_BRSF_FEATURES
 
 logger = logging.getLogger("hfp/"+__name__)
 
@@ -26,10 +27,16 @@ class RemotePhone:
         # other
         self._ag_features = None
         self._ag_multicall = None
+        self._codec = "CVSD"
         self.io_loop = io_loop
 
         # kick-off handshake
         self.io_loop.add_callback(self._do_handshake)
+
+    @property
+    def codec(self):
+        """The SCO audio codec."""
+        return self._codec
 
     def _connection_close(self):
         """Called when serial connection is closed.
@@ -56,10 +63,17 @@ class RemotePhone:
 
             # features
             self._ag_features = yield self._send_and_wait(
-                "AT+BRSF={}".format(HF_FEATURES), "BRSF")
+                "AT+BRSF={}".format(HF_BRSF_FEATURES),
+                "BRSF")
             logger.debug("BRSF response = {}".format(self._ag_features))
-            if not self._ag_features["WIDE_BAND"]:
-                raise InvalidOperationError("Device does not support HQ audio.")
+
+            # negotiate to mSBC
+            if self._ag_features["CODEC_NEG"]:
+                try:
+                    yield self._send_and_wait("AT+BAC=2", "OK")
+                    self._codec = "mSBC"
+                except TimeoutError:
+                    logger.debug("Failed to negotiate to mSBC codec.")
 
             # indicators
             yield self._send_and_wait("AT+CIND=?", "CIND")
