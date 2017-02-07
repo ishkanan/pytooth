@@ -23,6 +23,7 @@ class RemotePhone:
 
         # public events
         self.on_handshake_complete = None
+        self.on_indicator_update = None
 
         # other
         self._ag_features = None
@@ -53,6 +54,10 @@ class RemotePhone:
         """
         logger.debug("Got message {}{}".format(
             code, " - {}".format(data) if data else ""))
+
+        # indicator
+        if code == "CIEV" and self.on_indicator_update:
+            self.on_indicator_update(data=data)
 
     @coroutine
     def _do_handshake(self):

@@ -232,8 +232,8 @@ class SerialPortConnection:
         try:
             params = params.split(",")
             return {
-                "name": self._indmap[int(params[0])-1],
-                "value": params[1]}
+                self._indmap[int(params[0])-1]: params[1]
+            }
         except IndexError:
             logger.debug("Unknown indicator, will ignore it.")
 

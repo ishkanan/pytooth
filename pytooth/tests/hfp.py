@@ -57,7 +57,8 @@ class TestApplication:
         self.hfp.set_pairable(enabled=connected)
 
     def _audio_connected(self, adapter, socket, mtu, peer):
-        # we make a sink
+        # store for later use
+        self._socket = socket
 
         # self.sink = PortAudioSink(
         #     decoder=SBCDecoder(
@@ -75,18 +76,29 @@ class TestApplication:
         #     socket_or_fd=socket,
         #     read_mtu=mtu,
         #     filename="/home/vagrant/pytooth/out.wav")
-
-        self.sink = DirectFileSink(
-            socket_or_fd=socket,
-            filename="/home/vagrant/pytooth/out.cvsd")
-        self.sink.start()
-        logger.info("Built new sink.")
+        pass
 
     def _audio_setup_error(self, adapter, error):
         pass
 
     def _device_connected_changed(self, device, connected, phone):
         self.phone = phone
+        phone.on_indicator_update = self._phone_indicator_update
 
     def _profile_status_changed(self, available):
         pass
+
+    def _phone_indicator_update(self, data):
+        # start sink if a call has been set up
+        logger.debug("Got an indicator update!")
+
+        call = data.get("call")
+        if call == "1":
+            self.sink = DirectFileSink(
+                socket_or_fd=self._socket,
+                filename="/home/vagrant/pytooth/out.cvsd")
+            self.sink.start()
+            logger.info("Built new sink.")
+        elif call == "0" and self.sink:
+            self.sink.stop()
+            logger.info("Destroyed sink.")
