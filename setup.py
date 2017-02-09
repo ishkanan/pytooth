@@ -30,7 +30,6 @@ def main():
     # pre-reqs
     packages_dir = os.getcwd()+"/packages/"
     python_dir = os.path.abspath(os.path.join(os.getcwd(), "../"))
-    user = getpass.getuser()
 
     # do GObject install
     os.system(
