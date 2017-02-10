@@ -22,13 +22,10 @@ def main():
     with open('requirements_dev.txt') as f:
         test_requirements = f.read().split("\n")
 
-    # Windows doesn't need setproctitle as it will be built into an EXE anyway
-    if platform.system() == 'Windows':
-        install_requirements = [x for x in install_requirements \
-                                if not x.startswith('setproctitle')]
-
     # pre-reqs
-    packages_dir = os.getcwd()+"/packages/"
+    packages_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "/packages/")
     python_dir = os.path.abspath(os.path.join(os.getcwd(), "../"))
 
     # do GObject install
