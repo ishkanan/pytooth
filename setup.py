@@ -1,8 +1,7 @@
 """Setup definition."""
 
-import getpass
 import os
-import platform
+import site
 
 from setuptools import setup, find_packages
 
@@ -25,8 +24,8 @@ def main():
     # pre-reqs
     packages_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
-        "/packages/")
-    python_dir = os.path.abspath(os.path.join(os.getcwd(), "../"))
+        "packages/")
+    python_dir = os.path.join(site.USER_SITE, "../")
 
     # do GObject install
     os.system(
