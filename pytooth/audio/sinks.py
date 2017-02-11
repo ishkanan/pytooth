@@ -29,6 +29,7 @@ class DirectFileSink:
         self._socket = self._socket_or_fd
         if isinstance(self._socket_or_fd, int):
             self._socket = socket(fileno=self._socket_or_fd)
+        self._socket.setblocking(True)
         self._stream = IOStream(socket=self._socket)
         self._stream.set_close_callback(self._on_close)
         self._stream.read_until_close(
