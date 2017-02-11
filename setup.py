@@ -14,8 +14,6 @@ def main():
         long_description = f.read()
 
     # parse the requirements files
-    with open('dependencies.txt') as f:
-        dependency_requirements = f.read().split("\n")
     with open('requirements.txt') as f:
         install_requirements = f.read().split("\n")
     with open('requirements_dev.txt') as f:
@@ -26,6 +24,11 @@ def main():
         os.path.dirname(os.path.realpath(__file__)),
         "packages/")
     python_dir = os.path.join(site.USER_SITE, "../")
+
+    # parse dependency locations
+    with open('dependencies.txt') as f:
+        dependency_requirements = f.read().replace(
+            "{{ PACKAGES_DIR }}", packages_dir).split("\n")
 
     # do GObject install
     os.system(

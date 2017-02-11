@@ -1,2 +1,2 @@
-file:./packages/dbus-python-1.2.4#egg=dbus-python-1.2.4
-file:./packages/pygobject-3.22.0#egg=pygobject-3.22.0
+file:{{ PACKAGES_DIR }}dbus-python-1.2.4#egg=dbus-python-1.2.4
+file:{{ PACKAGES_DIR }}/packages/pygobject-3.22.0#egg=pygobject-3.22.0
