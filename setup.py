@@ -32,14 +32,6 @@ os.system(
     "python setup.py build; "
     "python setup.py install; ")
 
-# do dbus-python install
-os.system(
-    "cd "+packages_dir+"; "
-    "tar xf dbus-python-1.2.4.tar.gz; "
-    "cd dbus-python-1.2.4; "
-    "python setup.py build; "
-    "python setup.py install; ")
-
 # do SBC decoder install
 os.system(
     "cd "+packages_dir+"; "
@@ -76,5 +68,4 @@ setup(
 os.system(
     "cd "+packages_dir+"; "
     "sudo rm -Rf pygobject-3.22.0/; "
-    "sudo rm -Rf sbc-1.2/; "
-    "sudo rm -Rf dbus-python-1.2.4/; ")
+    "sudo rm -Rf sbc-1.2/; ")
