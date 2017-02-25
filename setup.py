@@ -1,7 +1,6 @@
 """Setup entry point."""
 
 import os
-import site
 
 from setuptools import setup, find_packages
 
@@ -20,23 +19,17 @@ with open('requirements_dev.txt') as f:
 packages_dir = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     "packages/")
-python_dir = os.path.join(site.USER_SITE, "../").replace("/", "\\/")
 
 # parse dependency locations
 with open('dependencies.txt') as f:
-    dependency_requirements = f.read().replace(
-        "{{ PACKAGES_DIR }}", packages_dir).split("\n")
+    dependency_requirements = f.read().split("\n")
 
 # do GObject install
 os.system(
     "cd "+packages_dir+"; "
     "tar xf pygobject-3.22.0.tar.xz; "
     "cd pygobject-3.22.0; "
-    "sed -i '13273s/${prefix}/"+python_dir+"/' configure; "
-    "sed -i '13275s/${exec_prefix}/"+python_dir+"/' configure; "
-    "./configure; "
-    "make; "
-    "sudo make install; "
+    "python setup.py build; "
     "python setup.py install; ")
 
 # do dbus-python install
@@ -44,11 +37,7 @@ os.system(
     "cd "+packages_dir+"; "
     "tar xf dbus-python-1.2.4.tar.gz; "
     "cd dbus-python-1.2.4; "
-    "sed -i '12352s/${prefix}/"+python_dir+"/' configure; "
-    "sed -i '12354s/${exec_prefix}/"+python_dir+"/' configure; "
-    "./configure; "
-    "make; "
-    "sudo make install; "
+    "python setup.py build; "
     "python setup.py install; ")
 
 # do SBC decoder install
