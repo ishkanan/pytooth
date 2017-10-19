@@ -1,6 +1,7 @@
 """Setup entry point."""
 
 import os
+import platform
 
 from setuptools import setup, find_packages
 
@@ -9,42 +10,54 @@ from setuptools import setup, find_packages
 with open('README.md') as f:
     long_description = f.read()
 
-# parse the requirements files
+# parse the reqs/deps files
 with open('requirements.txt') as f:
     install_requirements = f.read().split("\n")
 with open('requirements_dev.txt') as f:
     test_requirements = f.read().split("\n")
-
-# pre-reqs
-packages_dir = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)),
-    "packages/")
-
-# parse dependency locations
 with open('dependencies.txt') as f:
     dependency_requirements = f.read().split("\n")
 
-# do GObject install
-os.system(
-    "cd "+packages_dir+"; "
-    "tar xf pygobject-3.22.0.tar.xz; "
-    "cd pygobject-3.22.0; "
-    "python setup.py build; "
-    "python setup.py install; ")
+# supported platform?
+# dist = platform.linux_distribution()
+# if "xenial" in dist:
+#     dist = "xenial"
+# else:
+#     print("ERROR: Linux distribution is not supported.")
+#     raise NotImplementedError()
+dist = "xenial"
 
-# do SBC decoder install
-os.system(
-    "cd "+packages_dir+"; "
-    "tar xf sbc-1.2.tar.gz; "
-    "cd sbc-1.2; "
-    "./configure; "
-    "make; "
-    "sudo make install; ")
+# prepare
+bin_dir = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    "packages/bin/{}".format(dist))
 
+# install pygobject
+os.system(
+    "cd '{bindir}/pygobject-3.22.0'; "
+    "python setup.py install; ".format(
+        bindir=bin_dir))
+
+# install external libraries
+os.system(
+    "sudo mkdir -p /usr/local/lib; "
+    "sudo chmod 755 /usr/local/lib")
+for lib in [("libliquid", "1.2.0"), ("libsbc", "1.2.0")]:
+    print("Installing {} external library to /usr/local/lib ...".format(lib))
+    os.system(
+        "sudo cp '{bindir}/{libname}.so.{libver}' /usr/local/lib/; "
+        "(cd /usr/local/lib && {{ sudo ln -s -f {libname}.so.{libver} {libname}.so.1 || {{ sudo rm -f {libname}.so.1 && sudo ln -s {libname}.so.{libver} {libname}.so.1; }}; }}); "
+        "(cd /usr/local/lib && {{ sudo ln -s -f {libname}.so.{libver} {libname}.so || {{ sudo rm -f {libname}.so && sudo ln -s {libname}.so.{libver} {libname}.so; }}; }}); "
+        "sudo ldconfig -n /usr/local/lib".format(
+            bindir=bin_dir,
+            libname=lib[0],
+            libver=lib[1]))
+
+# go-go
 setup(
     name="pytooth",
     version="1.0.0",
-    description="Linux-only Bluez5-based implementation of A2DP and HFP.",
+    description="A Linux Bluez5-based implementation of A2DP and HFP.",
     long_description=long_description,
     author="Anthony Ishkan",
     author_email="anthony.ishkan@gmail.com",
@@ -65,7 +78,7 @@ setup(
 )
 
 # clean up working folders
-os.system(
-    "cd "+packages_dir+"; "
-    "sudo rm -Rf pygobject-3.22.0/; "
-    "sudo rm -Rf sbc-1.2/; ")
+# os.system(
+#     "cd "+packages_dir+"; "
+#     "sudo rm -Rf pygobject-3.22.0/; "
+#     "sudo rm -Rf sbc-1.2/; ")
