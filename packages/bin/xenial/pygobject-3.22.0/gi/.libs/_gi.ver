@@ -1,3 +1,0 @@
-{ global:
-PyInit__gi;
-local: *; };

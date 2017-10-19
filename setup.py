@@ -28,22 +28,42 @@ with open('dependencies.txt') as f:
 dist = "xenial"
 
 # prepare
-bin_dir = os.path.join(
+packages_dir = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
-    "packages/bin/{}".format(dist))
+    "packages")
+bin_dir = os.path.join(
+    packages_dir,
+    "bin/{}".format(dist))
+src_dir = os.path.join(
+    packages_dir,
+    "src")
+print("packages_dir = {}, bin_dir = {}, src_dir = {}".format(
+    packages_dir, bin_dir, src_dir))
 
-# install pygobject
-os.system(
-    "cd '{bindir}/pygobject-3.22.0'; "
-    "python setup.py install; ".format(
-        bindir=bin_dir))
+# install source libraries
+# NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
+for lib in [("pygobject", "3.22.0", "xz"), ("dbus-python", "1.2.4", "gz")]:
+    print("Installing {}-{} library from source ...".format(
+        lib[0], lib[1]))
+    os.system(
+        "cd '{srcdir}'; "
+        "tar xf {libname}-{libver}.tar.{ext}; "
+        "cd {libname}-{libver}; "
+        "./configure -prefix=$VIRTUAL_ENV -exec-prefix=$VIRTUAL_ENV >/dev/null; "
+        "make >/dev/null; "
+        "sudo make install >/dev/null; ".format(
+            srcdir=src_dir,
+            libname=lib[0],
+            libver=lib[1],
+            ext=lib[2]))
 
-# install external libraries
+# install pre-compiled libraries
 os.system(
     "sudo mkdir -p /usr/local/lib; "
     "sudo chmod 755 /usr/local/lib")
 for lib in [("libliquid", "1.2.0"), ("libsbc", "1.2.0")]:
-    print("Installing {} external library to /usr/local/lib ...".format(lib))
+    print("Installing {}-{} pre-compiled library to /usr/local/lib ...".format(
+        lib[0], lib[1]))
     os.system(
         "sudo cp '{bindir}/{libname}.so.{libver}' /usr/local/lib/; "
         "(cd /usr/local/lib && {{ sudo ln -s -f {libname}.so.{libver} {libname}.so.1 || {{ sudo rm -f {libname}.so.1 && sudo ln -s {libname}.so.{libver} {libname}.so.1; }}; }}); "
@@ -78,7 +98,9 @@ setup(
 )
 
 # clean up working folders
-# os.system(
-#     "cd "+packages_dir+"; "
-#     "sudo rm -Rf pygobject-3.22.0/; "
-#     "sudo rm -Rf sbc-1.2/; ")
+print("Cleaning up source folders ...")
+os.system(
+    "sudo rm -Rf '{srcdir}/dbus-python-1.2.4/'; "
+    "sudo rm -Rf '{srcdir}/pygobject-3.22.0/'; ".format(
+        srcdir=src_dir))
+
