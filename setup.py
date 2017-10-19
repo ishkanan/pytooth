@@ -82,7 +82,7 @@ setup(
     author="Anthony Ishkan",
     author_email="anthony.ishkan@gmail.com",
     url="https://bitbucket.org/ishkanan/pytooth",
-    packages=find_packages(exclude=["pytooth.tests"]),
+    packages=find_packages(where="."),
     package_data={
         "": ["*.txt", "*.rst", "*.md"]
     },
