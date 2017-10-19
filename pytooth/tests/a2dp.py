@@ -62,15 +62,15 @@ class TestApplication:
     def _audio_stream_state_changed(self, adapter, transport, state):
         # we make sinks or destroy them...
         if state == "playing" and self.sink is None:
-            # self.sink = PortAudioSink(
-            #     decoder=SBCDecoder(
-            #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-            #     socket_or_fd=transport.fd,
-            #     read_mtu=transport.read_mtu,
-            #     card_name="pulse")
-            self.sink = DirectFileSink(
+            self.sink = PortAudioSink(
+                decoder=SBCDecoder(
+                    libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
                 socket_or_fd=transport.fd,
-                filename="/home/vagrant/pytooth/raw_a2dp.out")
+                read_mtu=transport.read_mtu,
+                card_name="pulse")
+            # self.sink = DirectFileSink(
+            #     socket_or_fd=transport.fd,
+            #     filename="/home/vagrant/pytooth/raw_a2dp.out")
             self.sink.start()
             logger.info("Built new sink.")
         elif state == "released" and self.sink:
