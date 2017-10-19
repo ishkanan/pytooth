@@ -1,5 +1,9 @@
 
+import logging
+
 import dbus
+
+logger = logging.getLogger("bluez5/"+__name__)
 
 
 # maps DBus types to Python types (for decode)
@@ -122,7 +126,7 @@ class Bluez5Utils:
                 bus=bus,
                 adapter_path=path)
             
-            if not address or address.upper() == obj.Address.upper():
+            if not address or address.upper() == obj.get("Address").upper():
                 return obj
 
         return None
