@@ -159,6 +159,11 @@ class SerialPortConnection:
                 if self.on_message:
                     self.on_message(code="OK", data=None)
 
+        elif msg == "RING":
+            # ringing alert
+            if self.on_message:
+                self.on_message(code="RING", data=None)
+
         else:
             # strip leading "+" and split from first ":"
             # e.g. +BRSF: ...
@@ -254,6 +259,14 @@ class SerialPortConnection:
         # 0,0,1,4,0,3,0
         return dict([
             (self._indmap[i], val) for i, val in enumerate(params.split(","))])
+
+    def _handle_clip(self, params):
+        """Contains phone number of calling party (if CLI enabled).
+        """
+        # "0383417060",129
+        if "," in params:
+            params = params[:params.index(",")]
+        return params.replace("\"", "")
 
     def _handle_cme_error(self, params):
         """Extended error code.
