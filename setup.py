@@ -61,7 +61,7 @@ for lib in [("pygobject", "3.22.0", "xz"), ("dbus-python", "1.2.4", "gz")]:
 os.system(
     "sudo mkdir -p /usr/local/lib; "
     "sudo chmod 755 /usr/local/lib")
-for lib in [("libliquid", "1.2.0"), ("libsbc", "1.2.0")]:
+for lib in [("libliquid", "1.3.0"), ("libsbc", "1.2.0")]:
     print("Installing {}-{} pre-compiled library to /usr/local/lib ...".format(
         lib[0], lib[1]))
     os.system(
