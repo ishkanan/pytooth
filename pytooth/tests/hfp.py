@@ -7,6 +7,7 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
+from pytooth.audio.decoders.cvsd import CVSDDecoder
 from pytooth.audio.decoders.sbc import SBCDecoder
 from pytooth.audio.decoders.sox import SoxDecoder
 from pytooth.audio.sinks import DirectFileSink, PortAudioSink, WAVFileSink
@@ -23,6 +24,9 @@ class TestApplication:
         bus = pytooth.init()
         
         self.sink = None
+        self._socket = None
+        self._oncall = False
+        self._mtu = None
 
         # profile
         hfp = HandsFreeProfile(
@@ -59,24 +63,12 @@ class TestApplication:
     def _audio_connected(self, adapter, socket, mtu, peer):
         # store for later use
         self._socket = socket
+        self._mtu = mtu
 
-        # self.sink = PortAudioSink(
-        #     decoder=SBCDecoder(
-        #         libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-        #     socket_or_fd=socket,
-        #     read_mtu=mtu,
-        #     card_name="pulse")
-
-        # self.sink = WAVFileSink(
-        #     decoder=SoxDecoder(
-        #         codec="cvsd",
-        #         out_channels=1,
-        #         out_samplerate=8000,
-        #         out_samplesize=8), # bits
-        #     socket_or_fd=socket,
-        #     read_mtu=mtu,
-        #     filename="/home/vagrant/pytooth/out.wav")
-        pass
+        # if phone initiated the call, socket is established early
+        # if phone received the call, socket establishes later
+        if self._oncall:
+            self._make_sink()
 
     def _audio_setup_error(self, adapter, error):
         pass
@@ -93,12 +85,45 @@ class TestApplication:
         logger.debug("Got an indicator update!")
 
         call = data.get("call")
+
+        # if phone initiated the call, socket is established before this indicator
+        # if phone received the call, socket establishes after this indicator
         if call == "1":
-            self.sink = DirectFileSink(
-                socket_or_fd=self._socket,
-                filename="/home/vagrant/pytooth/out.cvsd")
-            self.sink.start()
-            logger.info("Built new sink.")
+            self._oncall = True
+            if self._socket:
+                self._make_sink()
+
+        # call ended
         elif call == "0" and self.sink:
+            self._oncall = False
             self.sink.stop()
             logger.info("Destroyed sink.")
+
+    def _make_sink(self):
+        # sinks can be made via 2 use cases:
+        # - phone makes call
+        # - phone receives call
+
+        # self.sink = DirectFileSink(
+        #     socket_or_fd=self._socket,
+        #     filename="/home/ishkanan/out.cvsd")
+        # self.sink.start()
+        # logger.info("Built new sink.")
+
+        self.sink = PortAudioSink(
+            decoder=CVSDDecoder(
+                libliquid_so_file="/usr/local/lib/libliquid.so.1.2.0"),
+            socket_or_fd=self._socket,
+            read_mtu=self._mtu,
+            card_name="pulse",
+            buffer_secs=1)
+
+        # self.sink = WAVFileSink(
+        #     decoder=SoxDecoder(
+        #         codec="cvsd",
+        #         out_channels=1,
+        #         out_samplerate=8000,
+        #         out_samplesize=8), # bits
+        #     socket_or_fd=self._socket,
+        #     read_mtu=self._mtu,
+        #     filename="/home/vagrant/pytooth/out.wav")
