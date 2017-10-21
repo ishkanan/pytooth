@@ -7,9 +7,8 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.audio.decoders.cvsd import CVSDDecoder
+from pytooth.audio.decoders.pcm import PCMDecoder
 from pytooth.audio.decoders.sbc import SBCDecoder
-from pytooth.audio.decoders.sox import SoxDecoder
 from pytooth.audio.sinks import DirectFileSink, PortAudioSink, WAVFileSink
 
 logger = logging.getLogger("hfp-test")
@@ -92,11 +91,13 @@ class TestApplication:
             self._oncall = True
             if self._socket:
                 self._make_sink()
+                self.sink.start()
 
         # call ended
         elif call == "0" and self.sink:
             self._oncall = False
             self.sink.stop()
+            self.sink = None
             logger.info("Destroyed sink.")
 
     def _make_sink(self):
@@ -108,11 +109,9 @@ class TestApplication:
         #     socket_or_fd=self._socket,
         #     filename="/home/ishkanan/out.cvsd")
         # self.sink.start()
-        # logger.info("Built new sink.")
 
         self.sink = PortAudioSink(
-            decoder=CVSDDecoder(
-                libliquid_so_file="/usr/local/lib/libliquid.so.1.2.0"),
+            decoder=PCMDecoder(),
             socket_or_fd=self._socket,
             read_mtu=self._mtu,
             card_name="pulse",
@@ -127,3 +126,5 @@ class TestApplication:
         #     socket_or_fd=self._socket,
         #     read_mtu=self._mtu,
         #     filename="/home/vagrant/pytooth/out.wav")
+
+        logger.info("Built new sink.")

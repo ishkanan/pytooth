@@ -241,6 +241,25 @@ class MediaManager:
                     error=e)
             return
 
+        # check CVSD mode is good
+        try:
+            mode = sock.getsockopt(274, 11)
+            logger.debug("CVSD mode = {}".format(mode))
+            if mode != 96: # 16-bit signed LE samples
+                if self.on_media_setup_error:
+                    self.on_media_setup_error(
+                        adapter=adapter,
+                        error=e)
+                return
+        except Exception as e:
+            sock.close()
+            logger.warning("CVSD mode retrieve error - {}".format(e))
+            if self.on_media_setup_error:
+                self.on_media_setup_error(
+                    adapter=adapter,
+                    error=e)
+            return
+
         # caller to start listening again
         self.stop(adapter)
 
