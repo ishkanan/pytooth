@@ -8,8 +8,7 @@ import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.audio.decoders.pcm import PCMDecoder
-from pytooth.audio.decoders.sbc import SBCDecoder
-from pytooth.audio.sinks import DirectFileSink, PortAudioSink, WAVFileSink
+from pytooth.audio.sinks.playback import PortAudioSink
 
 logger = logging.getLogger("hfp-test")
 
@@ -18,10 +17,7 @@ class TestApplication:
     """Test application for the HFP profile.
     """
 
-    def __init__(self, config):
-        # init
-        bus = pytooth.init()
-        
+    def __init__(self, bus, config):
         self.sink = None
         self._socket = None
         self._oncall = False
@@ -115,7 +111,7 @@ class TestApplication:
             socket_or_fd=self._socket,
             read_mtu=self._mtu,
             card_name="pulse",
-            buffer_secs=1)
+            buffer_secs=0)
 
         # self.sink = WAVFileSink(
         #     decoder=SoxDecoder(

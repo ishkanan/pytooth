@@ -8,7 +8,7 @@ import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.audio.decoders.sbc import SBCDecoder
-from pytooth.audio.sinks import DirectFileSink, PortAudioSink
+from pytooth.audio.sinks.playback import PortAudioSink
 
 logger = logging.getLogger("a2dp-test")
 
@@ -17,10 +17,7 @@ class TestApplication:
     """Test application for the A2DP profile.
     """
 
-    def __init__(self, config):
-        # init
-        bus = pytooth.init()
-
+    def __init__(self, bus, config):
         self.sink = None
 
         # profile
