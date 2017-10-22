@@ -236,31 +236,38 @@ class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
     """
 
+    # multiple profiles must use a single agent
+    agent = None
+    agentmgr_proxy = None
+
     def __init__(self, system_bus, io_loop, *args, **kwargs):
         super().__init__(system_bus, io_loop, *args, **kwargs)
         
         self._system_bus = system_bus
         self.io_loop = io_loop
 
-        # build agent
-        self._agent = NoInputNoOutputAgent(
-            system_bus=system_bus,
-            dbus_path=DBUS_AGENT_PATH)
+        # build agent if required
+        if not OpenPairableAdapter.agent:
+            OpenPairableAdapter.agent = NoInputNoOutputAgent(
+                system_bus=system_bus,
+                dbus_path=DBUS_AGENT_PATH)
+        self._agent = OpenPairableAdapter.agent
         self._agent.on_release = self._on_agent_release
+        
+        # register agent if required
+        if not OpenPairableAdapter.agentmgr_proxy:
+            OpenPairableAdapter.agentmgr_proxy = Bluez5Utils.get_agentmanager(
+                bus=system_bus)
+            OpenPairableAdapter.register_agent()
 
-        # register it
-        self._agentmgr_proxy = Bluez5Utils.get_agentmanager(
-            bus=system_bus)
-        self._register_agent()
-
-    def _register_agent(self):
-        """Registers the agent.
+    def register_agent():
+        """Class-level method to register the agent.
         """
-        self._agentmgr_proxy.proxy.RegisterAgent(
+        OpenPairableAdapter.agentmgr_proxy.proxy.RegisterAgent(
             DBUS_AGENT_PATH,
             "NoInputNoOutput")
         logger.debug("Agent registered.")
-        self._agentmgr_proxy.proxy.RequestDefaultAgent(
+        OpenPairableAdapter.agentmgr_proxy.proxy.RequestDefaultAgent(
             DBUS_AGENT_PATH)
         logger.debug("We are now the default agent.")
 

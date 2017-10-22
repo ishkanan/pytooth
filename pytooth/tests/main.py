@@ -21,14 +21,16 @@ def signal_handler(signum, frame):
     global _closing
     _closing = True
 
-def try_exit(gtkloop, app):
+def try_exit(gtkloop, apps):
     global _closing
 
     if _closing:
-        try:
-            app.stop()
-        except Exception:
-            logging.exception("Error gracefully stopping application.")
+        for app in apps:
+            try:
+                app.stop()
+            except Exception:
+                logging.exception("Error gracefully stopping application '{}'.".format(
+                    app.__name__))
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")
 
@@ -65,18 +67,27 @@ def main():
     # make loop before connecting to DBus
     gtkloop = GtkMainLoop(io_loop=IOLoop.instance())
     
-    # load profile test app
-    try:
-        _t = __import__(
-            "pytooth.tests.{}".format(config["profile"]),
-            globals(),
-            locals(),
-            ["TestApplication"],
-            0)
-    except Exception:
-        logging.exception("Possible import error. Is your profile key valid?")
-        return
-    app = _t.TestApplication(config=config)
+    # create common objects
+    bus = pytooth.init()
+    
+    # load profile test apps
+    apps = []
+    for profile in config["profiles"]:
+        try:
+            _t = __import__(
+                "pytooth.tests.{}".format(profile),
+                globals(),
+                locals(),
+                ["TestApplication"],
+                0)
+            apps.append(_t.TestApplication(
+                bus=bus,
+                config=config))
+        except Exception:
+            logging.exception("Possible import error of '{}' profile.".format(
+                profile))
+    if len(apps) == 0:
+        logging.error("No valid profiles loaded - exiting.")
 
     # run the test app
     logging.info("Running...")
@@ -84,6 +95,7 @@ def main():
     PeriodicCallback(partial(
         try_exit,
         gtkloop=gtkloop,
-        app=app), 500).start()
-    app.start()
+        apps=apps), 500).start()
+    for app in apps:
+        app.start()
     gtkloop.start()

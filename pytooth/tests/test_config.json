@@ -32,8 +32,8 @@
         }
     },
 
-    "profile": "a2dp",
-    "preferredaddress": "80:e6:50:08:81:ef",
+    "profiles": ["hfp"],
+    "preferredaddress": "",
     "retryinterval": 15
 
 }
