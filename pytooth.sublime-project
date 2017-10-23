@@ -11,7 +11,8 @@
 	"folders":
 	[
 		{
-			"path": "../../pytooth"
+			"path": "../../pytooth",
+			"folder_exclude_patterns": ["__pycache__", "build", "dist", "*egg*"]
 		}
 	]
 }
