@@ -1,6 +1,7 @@
 
 import ctypes as ct
 import logging
+import select
 import socket
 from threading import Thread
 from time import sleep
@@ -63,30 +64,25 @@ class SBCDecoder:
 
         self.on_close = None
         self.on_data_ready = None
-        self.on_unhandled_error = None
-        self.on_wav_params_ready = None
+        self.on_fatal_error = None
+        self.on_pcm_format_ready = None
 
         # contains header info
         self._sbc = None
         self._sbc_populated = False
 
-    def start(self, socket_or_fd, read_mtu):
+    def start(self, socket, read_mtu):
         """Starts the decoder. If already started, this does nothing.
         """
         if self._started:
             return
-
+        
+        # setup
         self._read_mtu = read_mtu
         self._sbc = sbc_t()
         self._sbc_populated = False
-
-        # did we get socket or fd?
-        self._socket = socket_or_fd
-        if isinstance(socket_or_fd, int):
-            logger.debug("SBCDecoder received fd, building socket...")
-            self._socket = socket.socket(fileno=socket_or_fd)
-        self._socket.setblocking(True)
-
+        self._socket = socket
+        self._socket.setblocking(False)
         self._worker = Thread(
             target=self._do_decode,
             name="SBCDecoder",
@@ -101,30 +97,29 @@ class SBCDecoder:
             return
 
         self._started = False
-        self._socket.close()
         self._worker.join()
 
     @property
     def channels(self):
-        if self._started and self._sbc_populated:
+        if self._sbc_populated:
             return CHANNELS.get(self._sbc.mode)
         return None
     
     @property
     def channel_mode(self):
-        if self._started and self._sbc_populated:
+        if self._sbc_populated:
             return CHANNEL_MODE.get(self._sbc.mode)
         return None
 
     @property
     def sample_rate(self):
-        if self._started and self._sbc_populated:
+        if self._sbc_populated:
             return SAMPLE_RATES.get(self._sbc.frequency)
         return None
 
     @property
     def sample_size(self):
-        if self._started and self._sbc_populated:
+        if self._sbc_populated:
             return SAMPLE_SIZES.get(self._sbc.blocks)
         return None
 
@@ -139,9 +134,8 @@ class SBCDecoder:
         except Exception as e:
             logger.exception("Unhandled decode error.")
             self._started = False
-            self._socket.close()
-            if self.on_unhandled_error:
-                self.on_unhandled_error(error=e)
+            if self.on_fatal_error:
+                self.on_fatal_error(error=e)
             unexpected_close = True
         finally:
             logger.debug("sbc_finish will be called.")
@@ -151,11 +145,12 @@ class SBCDecoder:
             self.on_close()
 
     def _worker_proc(self):
-        """Does the decoding of SBC samples to WAV samples. Runs in an infinite
+        """Does the decoding of SBC samples to PCM samples. Runs in an infinite
         loop until stopped.
         """
 
         # initialise
+        MIN_PACKET_LEN = 14
         bufsize = self._read_mtu
         buf = ct.create_string_buffer(bufsize)
         self._libsbc.sbc_init(ct.byref(self._sbc), 0)
@@ -165,19 +160,24 @@ class SBCDecoder:
         written = ct.c_size_t() # optimisation
 
         # loop until stopped
+        sock_buffer = b''
         while self._started:
 
-            # read more RTP data
+            # read more RTP data in non-blocking mode
             try:
-                data = self._socket.recv(bufsize, socket.MSG_WAITALL)
-            except Exception as e:
-                # socket may have closed, up to stop() to be called
-                logger.error("Socket read error - {}".format(e))
+                result = select.select([self._socket.fileno()], [], [], 0.25)
                 data = b''
-                sleep(0.25)    # don't consume 100% of CPU
-            if len(data) == 0:
+                if len(result[0]) == 1:
+                    data = self._socket.recv(bufsize)#, socket.MSG_WAITALL)
+            except Exception as e:
+                logger.error("Socket read error - {}".format(e))
+            
+            # append read to buffer and decode if enough bytes
+            sock_buffer += data
+            if len(sock_buffer) < MIN_PACKET_LEN:
                 continue
-
+            data = sock_buffer
+            
             # out-of-order packet?
             # note: we need to allow for 16-bit reset
             seq = data[2] + (data[3] << 8)
@@ -196,7 +196,7 @@ class SBCDecoder:
                 data = data[:-num_pad_bytes]
         
             # strip RTP
-            data = data[13:] # RTP header (12) + RTP payload (1)
+            data = data[MIN_PACKET_LEN-1:] # RTP header (12) + RTP payload (1)
         
             #logger.debug("Got {} bytes to decode.".format(len(data)))
             buf.value = data
@@ -219,8 +219,8 @@ class SBCDecoder:
                         self._sbc.bitpool,
                         self._sbc.flags,
                         self._sbc.endian))
-                if self.on_wav_params_ready:
-                    self.on_wav_params_ready()
+                if self.on_pcm_format_ready:
+                    self.on_pcm_format_ready()
                 decode_bufsize = \
                     int(bufsize / SBC_MIN_FRAME_LEN + 1) * \
                     self._libsbc.sbc_get_codesize(ct.byref(self._sbc))
@@ -258,6 +258,9 @@ class SBCDecoder:
                 decbuf_p.value += written.value
                 to_write.value -= written.value
                 total_written += written.value
+
+            # remove total processed bytes from buffer
+            sock_buffer = sock_buffer[MIN_PACKET_LEN + total_decoded:]
 
             # hand over decoded data
             if self.on_data_ready:

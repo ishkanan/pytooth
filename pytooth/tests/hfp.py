@@ -8,7 +8,9 @@ import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.audio.decoders.pcm import PCMDecoder
+from pytooth.audio.encoders.pcm import PCMEncoder
 from pytooth.audio.sinks.playback import PortAudioSink
+from pytooth.audio.sources.record import PortAudioSource
 
 logger = logging.getLogger("hfp-test")
 
@@ -19,6 +21,7 @@ class TestApplication:
 
     def __init__(self, bus, config):
         self.sink = None
+        self.source = None
         self._socket = None
         self._oncall = False
         self._mtu = None
@@ -49,6 +52,9 @@ class TestApplication:
         if self.sink:
             self.sink.stop()
             self.sink = None
+        if self.source:
+            self.source.stop()
+            self.source = None
 
     def _adapter_connected_changed(self, adapter, connected):
         # be discoverable if adapter is connected
@@ -63,7 +69,7 @@ class TestApplication:
         # if phone initiated the call, socket is established early
         # if phone received the call, socket establishes later
         if self._oncall:
-            self._make_sink()
+            self._establish_audio()
 
     def _audio_setup_error(self, adapter, error):
         pass
@@ -86,25 +92,17 @@ class TestApplication:
         if call == "1":
             self._oncall = True
             if self._socket:
-                self._make_sink()
-                self.sink.start()
+                self._establish_audio()
 
         # call ended
-        elif call == "0" and self.sink:
+        elif call == "0":
             self._oncall = False
-            self.sink.stop()
-            self.sink = None
-            logger.info("Destroyed sink.")
+            self._stop_audio()
 
-    def _make_sink(self):
-        # sinks can be made via 2 use cases:
+    def _establish_audio(self):
+        # audio can start via 2 use cases:
         # - phone makes call
         # - phone receives call
-
-        # self.sink = DirectFileSink(
-        #     socket_or_fd=self._socket,
-        #     filename="/home/ishkanan/out.cvsd")
-        # self.sink.start()
 
         self.sink = PortAudioSink(
             decoder=PCMDecoder(),
@@ -112,15 +110,26 @@ class TestApplication:
             read_mtu=self._mtu,
             card_name="pulse",
             buffer_secs=0)
+        self.sink.start()
+        logger.info("Started sink.")
 
-        # self.sink = WAVFileSink(
-        #     decoder=SoxDecoder(
-        #         codec="cvsd",
-        #         out_channels=1,
-        #         out_samplerate=8000,
-        #         out_samplesize=8), # bits
-        #     socket_or_fd=self._socket,
-        #     read_mtu=self._mtu,
-        #     filename="/home/vagrant/pytooth/out.wav")
+        self.source = PortAudioSource(
+            encoder=PCMEncoder(),
+            socket_or_fd=self._socket,
+            write_mtu=self._mtu,
+            card_name="pulse")
+        self.source.start()
+        logger.info("Started source.")
 
-        logger.info("Built new sink.")
+    def _stop_audio(self):
+        # no more active calls, obviously
+
+        if self.sink:
+            self.sink.stop()
+            self.sink = None
+            logger.info("Destroyed sink.")
+
+        if self.source:
+            self.source.stop()
+            self.source = None
+            logger.info("Destroyed source.")

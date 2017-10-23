@@ -6,15 +6,16 @@ from tornado.ioloop import IOLoop
 
 import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
+from pytooth.a2dp.sbc import SBCDecoder
+from pytooth.a2dp.sinks import PortAudioSink
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.audio.decoders.sbc import SBCDecoder
-from pytooth.audio.sinks.playback import PortAudioSink
 
 logger = logging.getLogger("a2dp-test")
 
 
 class TestApplication:
-    """Test application for the A2DP profile.
+    """Test application for the A2DP profile. The logic of this code is suitable
+    for use in a real-world application.
     """
 
     def __init__(self, bus, config):
@@ -54,7 +55,9 @@ class TestApplication:
         self.a2dp.set_pairable(enabled=connected)
 
     def _audio_setup_error(self, adapter, error):
-        pass
+        # error setting up audio link, log and forget
+        logger.error("Cannot establish audio link on adapter {} - {}".format(
+            adapter, error))
 
     def _audio_stream_state_changed(self, adapter, transport, state):
         # we make sinks or destroy them...
@@ -62,23 +65,24 @@ class TestApplication:
             self.sink = PortAudioSink(
                 decoder=SBCDecoder(
                     libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-                socket_or_fd=transport.fd,
+                socket=transport.socket,
                 read_mtu=transport.read_mtu,
                 card_name="pulse",
                 buffer_secs=2)
             self.sink.start()
-            logger.info("Built new sink.")
+            logger.info("Built new PortAudioSink with SBCDecoder.")
         elif state == "released" and self.sink:
             self.sink.stop()
             self.sink = None
-            logger.info("Destroyed sink.")
+            logger.info("Destroyed PortAudioSink.")
 
     def _audio_track_changed(self, track):
-        # track changed
         logger.info("Track changed - {}".format(track))
         
     def _device_connected_changed(self, device, connected):
-        pass
+        logger.info("Device {} has {}connected.".format(
+            "" if connected else "not "))
 
     def _profile_status_changed(self, available):
-        pass
+        logger.info("A2DP profile is {}avaiable.".format(
+            "" if avaiable else "not "))

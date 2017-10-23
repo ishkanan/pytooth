@@ -4,6 +4,7 @@ https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc
 
 import logging
 import os
+import socket
 
 from dbus import Array, Byte
 import dbus.service
@@ -130,6 +131,7 @@ class MediaTransport:
         # other state
         self._acquired = False
         self._fd = None
+        self._socket = None
         self._read_mtu = None
         self._write_mtu = None
 
@@ -150,6 +152,10 @@ class MediaTransport:
         return self._write_mtu
 
     @property
+    def socket(self):
+        return self._socket
+
+    @property
     def proxy(self):
         """Returns the underlying DBusProxy object. Should only be used for
         property access.
@@ -157,18 +163,20 @@ class MediaTransport:
         return self._proxy
 
     def acquire(self):
-        """Acquires the transport OS socket from bluez5.
+        """Acquires the transport OS file descriptor from bluez5.
         """
         if self._acquired:
             return
 
-        logger.debug("Going to acquire OS socket for transport - {}".format(
+        logger.debug("Acquiring OS file descriptor for transport - {}".format(
             self._proxy.path))
         self._fd, self._read_mtu, self._write_mtu = \
             self._proxy.proxy.TryAcquire()
         self._fd = self._fd.take()
-        logger.debug("Successfully acquired OS socket - fd={}, readMTU={}, "
-            "writeMTU={}".format(self._fd, self._read_mtu, self._write_mtu))
+        self._socket = socket.socket(fileno=self._fd)
+        logger.debug("Successfully acquired OS file descriptor - fd={}, "
+            "readMTU={}, writeMTU={}".format(
+                self._fd, self._read_mtu, self._write_mtu))
         self._acquired = True
 
     def __repr__(self):

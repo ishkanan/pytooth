@@ -249,7 +249,8 @@ class MediaManager:
                 if self.on_media_setup_error:
                     self.on_media_setup_error(
                         adapter=adapter,
-                        error=e)
+                        error=Exception("Unsupported CVSD encoding mode - {}"
+                            ", only 16-bit signed LE is supported.".format(mode)))
                 return
         except Exception as e:
             sock.close()
