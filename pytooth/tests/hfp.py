@@ -7,19 +7,20 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.audio.decoders.pcm import PCMDecoder
-from pytooth.audio.encoders.pcm import PCMEncoder
-from pytooth.audio.sinks.playback import PortAudioSink
-from pytooth.audio.sources.record import PortAudioSource
+from pytooth.hfp.pcm import PCMDecoder, PCMEncoder
+from pytooth.hfp.sinks import PortAudioSink
+from pytooth.hfp.sources import PortAudioSource
 
 logger = logging.getLogger("hfp-test")
 
 
 class TestApplication:
-    """Test application for the HFP profile.
+    """Test application for the HFP profile. The logic of this code is suitable
+    for use in a real-world application.
     """
 
     def __init__(self, bus, config):
+        self.phone = None
         self.sink = None
         self.source = None
         self._socket = None
@@ -68,18 +69,27 @@ class TestApplication:
 
         # if phone initiated the call, socket is established early
         # if phone received the call, socket establishes later
-        if self._oncall:
+        if self.phone and self.phone.on_call:
             self._establish_audio()
 
     def _audio_setup_error(self, adapter, error):
-        pass
+        # error setting up audio link, log and forget
+        logger.error("Cannot establish audio link on adapter {} - {}".format(
+            adapter, error))
 
     def _device_connected_changed(self, device, connected, phone):
-        self.phone = phone
-        phone.on_indicator_update = self._phone_indicator_update
+        logger.info("Device {} has {}connected.".format(
+            "" if connected else "not "))
+
+        # keep phone proxy reference if connected
+        self.phone = None
+        if connected:
+            self.phone = phone
+            phone.on_indicator_update = self._phone_indicator_update
 
     def _profile_status_changed(self, available):
-        pass
+        logger.info("HFP profile is {}avaiable.".format(
+            "" if avaiable else "not "))
 
     def _phone_indicator_update(self, data):
         # start sink if a call has been set up
@@ -106,20 +116,20 @@ class TestApplication:
 
         self.sink = PortAudioSink(
             decoder=PCMDecoder(),
-            socket_or_fd=self._socket,
+            socket=self._socket,
             read_mtu=self._mtu,
             card_name="pulse",
             buffer_secs=0)
         self.sink.start()
-        logger.info("Started sink.")
+        logger.info("Built new PortAudioSink with PCMDecoder.")
 
         self.source = PortAudioSource(
             encoder=PCMEncoder(),
-            socket_or_fd=self._socket,
+            socket=self._socket,
             write_mtu=self._mtu,
             card_name="pulse")
         self.source.start()
-        logger.info("Started source.")
+        logger.info("Built new PortAudioSource with PCMEncoder.")
 
     def _stop_audio(self):
         # no more active calls, obviously
@@ -127,9 +137,9 @@ class TestApplication:
         if self.sink:
             self.sink.stop()
             self.sink = None
-            logger.info("Destroyed sink.")
+            logger.info("Destroyed PortAudioSink.")
 
         if self.source:
             self.source.stop()
             self.source = None
-            logger.info("Destroyed source.")
+            logger.info("Destroyed PortAudioSource.")

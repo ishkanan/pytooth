@@ -6,7 +6,7 @@ import socket
 from threading import Thread
 from time import sleep
 
-logger = logging.getLogger("audio/"+__name__)
+logger = logging.getLogger("a2dp/"+__name__)
 
 
 class sbc_t(ct.Structure):
@@ -62,7 +62,6 @@ class SBCDecoder:
         self._started = False
         self._worker = None
 
-        self.on_close = None
         self.on_data_ready = None
         self.on_fatal_error = None
         self.on_pcm_format_ready = None
@@ -127,8 +126,6 @@ class SBCDecoder:
         """Runs the decoder in a try/catch just in case something goes wrong.
         """
 
-        unexpected_close = False
-
         try:
             self._worker_proc()
         except Exception as e:
@@ -136,13 +133,9 @@ class SBCDecoder:
             self._started = False
             if self.on_fatal_error:
                 self.on_fatal_error(error=e)
-            unexpected_close = True
         finally:
-            logger.debug("sbc_finish will be called.")
+            logger.debug("SBC decoder stopped - cleaning up libsbc.")
             self._libsbc.sbc_finish(ct.byref(self._sbc), 0)
-
-        if unexpected_close and self.on_close:
-            self.on_close()
 
     def _worker_proc(self):
         """Does the decoding of SBC samples to PCM samples. Runs in an infinite
