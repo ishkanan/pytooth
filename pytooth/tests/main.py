@@ -10,7 +10,6 @@ import sys
 from tornado.ioloop import IOLoop, PeriodicCallback
 
 from pytooth.gi import GtkMainLoop
-from pytooth.tests.a2dp import TestApplication as a2dp
 import pytooth.tests.config
 from pytooth.tests.errors import ConfigurationError
 
@@ -30,7 +29,7 @@ def try_exit(gtkloop, apps):
                 app.stop()
             except Exception:
                 logging.exception("Error gracefully stopping application '{}'.".format(
-                    app.__name__))
+                    app))
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")
 

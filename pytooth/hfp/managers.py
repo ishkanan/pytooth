@@ -3,11 +3,11 @@
 
 from functools import partial
 import logging
+import select
 from socket import AF_BLUETOOTH, BTPROTO_SCO, SOCK_SEQPACKET, socket
 
 from dbus import UInt16
 from tornado.ioloop import IOLoop
-from tornado.iostream import IOStream
 
 from pytooth.bluez5.dbus import Profile
 from pytooth.bluez5.helpers import Bluez5Utils
@@ -144,7 +144,7 @@ class MediaManager:
 
     def __init__(self):
         # adapter to socket map
-        self._connections = {} # adapter: {socket, IOStream}
+        self._connections = {} # adapter: {socket}
 
         self.io_loop = IOLoop.instance()
 
@@ -157,10 +157,8 @@ class MediaManager:
         connections.
         """
         if adapter not in self._connections:
-            return "Idle"
-        if "stream" not in self._connections[adapter]:
-            return "Listening"
-        return "Connected"
+            return "idle"
+        return self._connections[adapter]["status"]
 
     def start(self, adapter):
         """Begins listening for a media connection via specified adapter. If
@@ -172,7 +170,8 @@ class MediaManager:
         # attempt to create listening socket
         try:
             self._connections[adapter] = {
-                "socket": self._sco_listen(adapter)
+                "socket": self._sco_listen(adapter),
+                "status": "listening"
             }
         except Exception as e:
             logger.exception("Failed to make SCO listen socket on adapter {}"
@@ -223,7 +222,8 @@ class MediaManager:
         """
         try:
             sock = self._connections[adapter]["socket"]
-            self.io_loop.remove_handler(sock.fileno())
+            if self._connections[adapter]["status"] == "listening":
+                self.io_loop.remove_handler(sock.fileno())
             sock.close()
         except KeyError:
             logger.warning("Ignored SCO close attempt for adapter {} as it is "
@@ -285,21 +285,19 @@ class MediaManager:
                     error="CVSD sample format ID retrieve error - {}".format(e))
             return
 
-        # close listening socket
+        # close listening socket and remember established one
         self._connections[adapter]["socket"].close()
-
-        # connection close detection
-        # note: we only read via the socket, never via the stream
-        stream = IOStream(socket=sock)
-        stream.set_close_callback(
-            callback=partial(self._sco_on_established_closed, adapter=adapter))
         self._connections[adapter] = {
             "socket": sock,
-            "stream": stream
+            "status": "connected"
         }
 
+        # connection close detection
+        self.io_loop.add_callback(
+            callback=partial(self._sco_close_check, adapter=adapter))
+
         # can finally safely announce new connection
-        logger.info("New SCO connection from peer {} for adapter {}".format(
+        logger.info("SCO connection established by peer {} for adapter {}".format(
             peer, adapter))
 
         if self.on_media_connected_changed:
@@ -310,14 +308,30 @@ class MediaManager:
                 mtu=mtu,
                 peer=peer)
 
-    def _sco_on_established_closed(self, adapter):
-        """Called by Tornado when an established SCO socket closes.
+    def _sco_close_check(self, adapter):
+        """Constantly called to check if an established SCO socket has closed.
         """
-        logger.debug("Established SCO socket has closed for adapter {}.".format(
-            adapter))
 
-        if adapter in self._connections:
-            # stop() wasn't called
+        # if stop() was called, the adapter won't be tracked, so stop checking
+        if adapter not in self._connections:
+            return
+
+        sock = self._connections[adapter]["socket"]
+        closed = False
+
+        try:
+            # timeout of 0 = poll, no blocking
+            result = select.select([sock.fileno()], [], [], 0)
+        except select.error:
+            closed = True
+        except ValueError:
+            # fileno() is -1 when socket closes
+            closed = True
+
+        if closed:
+            logger.debug("Established SCO socket closed for adapter {}.".format(
+                adapter))
+            # stop tracking and alert
             self.stop(adapter=adapter)
             if self.on_media_connected_changed:
                 self.on_media_connected_changed(
@@ -326,3 +340,9 @@ class MediaManager:
                     socket=None,
                     mtu=None,
                     peer=None)
+        else:
+            # keep checking
+            self.io_loop.call_later(
+                delay=1,
+                callback=self._sco_close_check,
+                adapter=adapter)

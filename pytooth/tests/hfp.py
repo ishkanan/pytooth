@@ -125,13 +125,13 @@ class TestApplication:
         self.sink.start()
         logger.info("Built new PortAudioSink with PCMDecoder.")
 
-        self.source = PortAudioSource(
-            encoder=PCMEncoder(),
-            socket=self._socket,
-            write_mtu=self._mtu,
-            card_name="pulse")
-        self.source.start()
-        logger.info("Built new PortAudioSource with PCMEncoder.")
+        # self.source = PortAudioSource(
+        #     encoder=PCMEncoder(),
+        #     socket=self._socket,
+        #     write_mtu=self._mtu,
+        #     card_name="pulse")
+        # self.source.start()
+        # logger.info("Built new PortAudioSource with PCMEncoder.")
 
     def _stop_audio(self):
         # no more active calls, obviously
@@ -141,7 +141,7 @@ class TestApplication:
             self.sink = None
             logger.info("Destroyed PortAudioSink.")
 
-        if self.source:
-            self.source.stop()
-            self.source = None
-            logger.info("Destroyed PortAudioSource.")
+        # if self.source:
+        #     self.source.stop()
+        #     self.source = None
+        #     logger.info("Destroyed PortAudioSource.")

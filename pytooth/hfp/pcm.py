@@ -1,9 +1,9 @@
 
 import logging
-import select
-import socket
-from threading import Thread
-from time import sleep
+
+from tornado.gen import coroutine, sleep
+from tornado.ioloop import IOLoop
+from tornado.iostream import IOStream
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ class PCMDecoder:
     """
 
     def __init__(self):
+        self._ioloop = IOLoop.current()
         self._started = False
         self._worker = None
 
@@ -31,13 +32,9 @@ class PCMDecoder:
         # setup
         self._read_mtu = read_mtu
         self._socket = socket
-        self._socket.setblocking(False)
-        self._worker = Thread(
-            target=self._do_decode,
-            name="PCMDecoder",
-            daemon=True)
+        self._stream = IOStream(socket=socket)
+        self._ioloop.add_callback(self._do_decode)
         self._started = True
-        self._worker.start()
 
     def stop(self):
         """Stops the decoder. If already stopped, this does nothing.
@@ -46,7 +43,9 @@ class PCMDecoder:
             return
 
         self._started = False
-        self._worker.join()
+        self._stream = None
+        self._socket = None
+        self._read_mtu = None
 
     @property
     def channels(self):
@@ -64,6 +63,7 @@ class PCMDecoder:
     def sample_size(self):
         return 16
 
+    @coroutine
     def _do_decode(self):
         """Runs the decoder in a try/catch just in case something goes wrong.
         """
@@ -71,13 +71,14 @@ class PCMDecoder:
             self._worker_proc()
         except Exception as e:
             logger.exception("Unhandled decode error.")
-            self._started = False
+            self.stop()
             if self.on_fatal_error:
                 self.on_fatal_error(error=e)
 
+    @coroutine
     def _worker_proc(self):
-        """Does the passing-through of PCM samples. Runs in an infinite
-        loop until stopped.
+        """Does the passing-through of PCM samples. Runs in an infinite but
+        asynchronous-style loop until stopped.
         """
 
         # initialise
@@ -88,14 +89,15 @@ class PCMDecoder:
         while self._started:
 
             # read more PCM data in non-blocking mode
+            data = b''
             try:
-                result = select.select([self._socket.fileno()], [], [], 0.25)
-                data = b''
-                if len(result[0]) == 1:
-                    data = self._socket.recv(self._read_mtu)#, socket.MSG_WAITALL)
+                data = yield self._stream.read_bytes(
+                    num_bytes=self._read_mtu,
+                    partial=False)
             except Exception as e:
                 logger.error("Socket read error - {}".format(e))
             if len(data) == 0:
+                yield sleep(0.1) # CPU busy safety
                 continue
 
             #logger.debug("Got {} PCM bytes.".format(len(data)))
