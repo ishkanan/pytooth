@@ -8,7 +8,7 @@ from tornado.process import Subprocess
 
 from pytooth.errors import InvalidOperationError
 
-logger = logging.getLogger("decoders/sox")
+logger = logging.getLogger(__name__)
 
 
 class SoxDecoder:

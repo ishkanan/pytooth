@@ -3,7 +3,7 @@ import logging
 
 import pyaudio
 
-logger = logging.getLogger("hfp/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 class PortAudioSource:

@@ -5,11 +5,11 @@ import socket
 from pytooth.a2dp.managers import MediaManager, ProfileManager
 from pytooth.bluez5.helpers import Bluez5Utils
 
-logger = logging.getLogger("a2dp")
+logger = logging.getLogger(__name__)
 
 
 class AdvancedAudioProfile:
-    """Wraps up A2DP profile control via Bluez5 stack.
+    """Top-level class for A2DP control via Bluez5 stack.
     """
 
     def __init__(self, system_bus, adapter_class, io_loop, *args, **kwargs):

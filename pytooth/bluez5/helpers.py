@@ -3,7 +3,7 @@ import logging
 
 import dbus
 
-logger = logging.getLogger("bluez5/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 # maps DBus types to Python types (for decode)

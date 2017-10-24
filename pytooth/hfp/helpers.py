@@ -2,12 +2,11 @@
 import ast
 from collections import defaultdict
 import logging
-import socket
 
 from tornado.gen import Future
 from tornado.iostream import IOStream
 
-logger = logging.getLogger("hfp/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 class SerialPortConnection:
@@ -50,7 +49,7 @@ class SerialPortConnection:
         32: "Emergency calls only"
     }
 
-    def __init__(self, fd, async_reply_delay, io_loop):
+    def __init__(self, socket, async_reply_delay, io_loop):
         self._async_reply_delay = async_reply_delay
         self._io_loop = io_loop
         self._remainder = b''
@@ -58,7 +57,7 @@ class SerialPortConnection:
         #   "future": <future>
         #   "handle": <timeout handle>]
         self._reply_q = defaultdict(list)
-        self._socket = socket.socket(fileno=fd)
+        self._socket = socket
         
         self.on_close = None
         self.on_error = None

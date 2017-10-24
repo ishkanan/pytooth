@@ -7,7 +7,7 @@ import logging
 from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 
-logger = logging.getLogger("gi")
+logger = logging.getLogger(__name__)
 
 
 class GtkMainLoop:

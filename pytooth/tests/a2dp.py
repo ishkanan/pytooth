@@ -10,7 +10,7 @@ from pytooth.a2dp.sbc import SBCDecoder
 from pytooth.a2dp.sinks import PortAudioSink
 from pytooth.adapters import OpenPairableAdapter
 
-logger = logging.getLogger("a2dp-test")
+logger = logging.getLogger(__name__)
 
 
 class TestApplication:

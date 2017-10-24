@@ -5,7 +5,7 @@ import socket
 from threading import Thread
 from time import sleep
 
-logger = logging.getLogger("hfp/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 class PCMDecoder:
@@ -92,7 +92,7 @@ class PCMDecoder:
                 result = select.select([self._socket.fileno()], [], [], 0.25)
                 data = b''
                 if len(result[0]) == 1:
-                    data = self._socket.recv(bufsize)#, socket.MSG_WAITALL)
+                    data = self._socket.recv(self._read_mtu)#, socket.MSG_WAITALL)
             except Exception as e:
                 logger.error("Socket read error - {}".format(e))
             if len(data) == 0:

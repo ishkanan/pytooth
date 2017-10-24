@@ -7,6 +7,7 @@ from socket import AF_BLUETOOTH, BTPROTO_SCO, SOCK_SEQPACKET, socket
 
 from dbus import UInt16
 from tornado.ioloop import IOLoop
+from tornado.iostream import IOStream
 
 from pytooth.bluez5.dbus import Profile
 from pytooth.bluez5.helpers import Bluez5Utils
@@ -16,7 +17,7 @@ from pytooth.hfp.constants import HFP_PROFILE_UUID, \
 from pytooth.hfp.helpers import SerialPortConnection
 from pytooth.hfp.proxy import RemotePhone
 
-logger = logging.getLogger("hfp/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 class ProfileManager:
@@ -94,13 +95,13 @@ class ProfileManager:
 
         self._profile = None
 
-    def _profile_on_connect(self, device, fd, fd_properties):
+    def _profile_on_connect(self, device, socket, fd_properties):
         """New RFCOMM connection has been established.
         """
 
         try:
             conn = SerialPortConnection(
-                fd=fd,
+                socket=socket,
                 async_reply_delay=5,
                 io_loop=self.io_loop)
         except Exception:
@@ -142,33 +143,51 @@ class MediaManager:
     """
 
     def __init__(self):
-        # socket
-        self._connections = {} # adapter: {socket}
+        # adapter to socket map
+        self._connections = {} # adapter: {socket, IOStream}
 
         self.io_loop = IOLoop.instance()
 
         # public events
-        self.on_media_connected = None
+        self.on_media_connected_changed = None
         self.on_media_setup_error = None
+
+    def status(self, adapter):
+        """Returns the status of a particular adapter with respect to SCO
+        connections.
+        """
+        if adapter not in self._connections:
+            return "Idle"
+        if "stream" not in self._connections[adapter]:
+            return "Listening"
+        return "Connected"
 
     def start(self, adapter):
         """Begins listening for a media connection via specified adapter. If
-        already listening on specified adapter, this does nothing.
+        already listening or established on adapter, this does nothing.
         """
         if adapter in self._connections:
             return
 
-        socket = self._sco_listen(adapter)
-        logger.debug("Waiting for SCO audio connection on adapter {}".format(
+        # attempt to create listening socket
+        try:
+            self._connections[adapter] = {
+                "socket": self._sco_listen(adapter)
+            }
+        except Exception as e:
+            logger.exception("Failed to make SCO listen socket on adapter {}"
+                "".format(adapter))
+            if self.on_media_setup_error:
+                self.on_media_setup_error(
+                    adapter=adapter,
+                    error="Failed to make SCO listen socket - {}".format(e))
+            return
+        logger.debug("Listening for SCO connection on adapter {}".format(
             adapter))
-        self._connections.update({
-            adapter: {
-                "socket": socket,
-            }})
 
     def stop(self, adapter):
-        """Stops listening for a media connection via specified adapter. If
-        not listening on specified adapter, this does nothing.
+        """Stops listening or closes media connection via specified adapter. If
+        not listening or established on adapter, this does nothing.
         """
         if adapter not in self._connections:
             return
@@ -179,94 +198,131 @@ class MediaManager:
     def _sco_listen(self, adapter):
         """Helper to set up a listening SCO socket.
         """
-        # raw socket
+
+        # obviously requires SCO socket support in the OS
         try:
             sock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO)
             sock.setblocking(0)
             sock.bind(adapter.address.encode())
             sock.listen(1)
         except Exception:
-            sock.close()
+            if sock:
+                sock.close()
             raise
 
         # connection accepter
         self.io_loop.add_handler(
             sock.fileno(),
-            partial(self._connection_ready, adapter=adapter),
+            partial(self._sco_connection_ready, adapter=adapter),
             IOLoop.READ)
 
         return sock
 
     def _sco_close(self, adapter):
-        """Helper to close an SCO socket.
+        """Helper to close a listening or established SCO socket.
         """
         try:
             sock = self._connections[adapter]["socket"]
             self.io_loop.remove_handler(sock.fileno())
             sock.close()
         except KeyError:
-            logger.warning("_sco_close() called for adapter {}, but adapter "
-                "is not being tracked.".format(adapter))
+            logger.warning("Ignored SCO close attempt for adapter {} as it is "
+                "not being tracked.".format(adapter))
         except Exception:
-            logger.exception("Socket close error.")
+            logger.exception("SCO socket close error for adapter {}".format(
+                adapter))
 
-    def _connection_ready(self, fd, events, adapter):
-        """Callback for a new connection.
+    def _sco_connection_ready(self, fd, events, adapter):
+        """Callback for a new SCO connection.
         """
+
+        # accept new socket
         try:
             (sock, peer) = self._connections[adapter]["socket"].accept()
         except Exception as e:
-            logger.warning("SCO socket accept error - {}".format(e))
+            logger.exception("SCO socket accept error for adapter {}".format(
+                adapter))
             if self.on_media_setup_error:
                 self.on_media_setup_error(
                     adapter=adapter,
-                    error=e)
+                    error="SCO socket accept error - {}".format(e))
             return
-            
-        logger.info("New SCO audio connection from {} via adapter {}".format(
-            peer, adapter))
         
         # get SCO MTU
-        # https://github.com/heinervdm/nohands/blob/d289c32aa843e46305d0d590640f56d5abdc0339/libhfp/hfp.cpp
-        # ScoGetParams function
         try:
             mtu = sock.getsockopt(17, 1)
-            logger.debug("SCO MTU = {}".format(mtu))
+            logger.debug("SCO MTU for adapter = {}".format(adapter, mtu))
         except Exception as e:
+            logger.exception("SCO MTU retrieve error for adapter {}".format(
+                adapter))
             sock.close()
-            logger.warning("SCO MTU retrieve error - {}".format(e))
             if self.on_media_setup_error:
                 self.on_media_setup_error(
                     adapter=adapter,
-                    error=e)
+                    error="SCO MTU retrieve error - {}".format(e))
             return
 
         # check CVSD mode is good
+        # note: this will need altering if we add support for mSBC
         try:
             mode = sock.getsockopt(274, 11)
-            logger.debug("CVSD mode = {}".format(mode))
+            logger.debug("CVSD sample format ID for adapter {} = {}".format(
+                adapter, mode))
             if mode != 96: # 16-bit signed LE samples
                 if self.on_media_setup_error:
                     self.on_media_setup_error(
                         adapter=adapter,
-                        error=Exception("Unsupported CVSD encoding mode - {}"
-                            ", only 16-bit signed LE is supported.".format(mode)))
+                        error="Unsupported CVSD sample format - {}"
+                            ", 16-bit signed LE required.".format(mode))
                 return
         except Exception as e:
+            logger.exception("CVSD sample format ID retrieve error for adapter "
+                "{}".format(adapter))
             sock.close()
-            logger.warning("CVSD mode retrieve error - {}".format(e))
             if self.on_media_setup_error:
                 self.on_media_setup_error(
                     adapter=adapter,
-                    error=e)
+                    error="CVSD sample format ID retrieve error - {}".format(e))
             return
 
-        # caller to start listening again
-        self.stop(adapter)
+        # close listening socket
+        self._connections[adapter]["socket"].close()
 
-        if self.on_media_connected:
-            self.on_media_connected(
+        # connection close detection
+        # note: we only read via the socket, never via the stream
+        stream = IOStream(socket=sock)
+        stream.set_close_callback(
+            callback=partial(self._sco_on_established_closed, adapter=adapter))
+        self._connections[adapter] = {
+            "socket": sock,
+            "stream": stream
+        }
+
+        # can finally safely announce new connection
+        logger.info("New SCO connection from peer {} for adapter {}".format(
+            peer, adapter))
+
+        if self.on_media_connected_changed:
+            self.on_media_connected_changed(
                 adapter=adapter,
+                connected=True,
                 socket=sock,
                 mtu=mtu,
                 peer=peer)
+
+    def _sco_on_established_closed(self, adapter):
+        """Called by Tornado when an established SCO socket closes.
+        """
+        logger.debug("Established SCO socket has closed for adapter {}.".format(
+            adapter))
+
+        if adapter in self._connections:
+            # stop() wasn't called
+            self.stop(adapter=adapter)
+            if self.on_media_connected_changed:
+                self.on_media_connected_changed(
+                    adapter=adapter,
+                    connected=False,
+                    socket=None,
+                    mtu=None,
+                    peer=None)

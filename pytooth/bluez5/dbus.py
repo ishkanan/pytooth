@@ -12,7 +12,7 @@ import dbus.service
 from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
 from pytooth.errors import InvalidOperationError
 
-logger = logging.getLogger("bluez5/"+__name__)
+logger = logging.getLogger(__name__)
 
 
 class Media:
@@ -219,7 +219,7 @@ class Profile(dbus.service.Object):
         device = dbus_to_py(device)
         fd_properties = dbus_to_py(fd_properties)
 
-        logger.debug("New service-level connection - device={}, fd={}, "
+        logger.debug("New RFCOMM service-level connection - device={}, fd={}, "
             "fd_properties={}".format(device, fd, fd_properties))
         fd = fd.take()
         logger.debug("OS-level fd = {}".format(fd))
@@ -232,7 +232,7 @@ class Profile(dbus.service.Object):
         if self.on_connect:
             self.on_connect(
                 device=device,
-                fd=fd,
+                socket=socket.socket(fileno=fd),
                 fd_properties=fd_properties)
 
     @dbus.service.method(dbus_interface=Bluez5Utils.PROFILE_INTERFACE,

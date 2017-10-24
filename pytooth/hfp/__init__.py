@@ -4,11 +4,11 @@ import logging
 from pytooth.hfp.managers import MediaManager, ProfileManager
 from pytooth.bluez5.helpers import Bluez5Utils
 
-logger = logging.getLogger("hfp")
+logger = logging.getLogger(__name__)
 
 
 class HandsFreeProfile:
-    """Wraps up HFP profile control via Bluez5 stack.
+    """Top-level class for HFP control via Bluez5 stack.
     """
 
     def __init__(self, system_bus, adapter_class, io_loop, *args, **kwargs):
@@ -33,13 +33,13 @@ class HandsFreeProfile:
 
         # media plumber
         mmgr = MediaManager()
-        mmgr.on_media_connected = self._media_connected
+        mmgr.on_media_connected_changed = self._media_connected_changed
         mmgr.on_media_setup_error = self._media_setup_error
         self._mediamgr = mmgr
 
         # public events
         self.on_adapter_connected_changed = None
-        self.on_audio_connected = None
+        self.on_audio_connected_changed = None
         self.on_audio_setup_error = None
         self.on_device_connected_changed = None
         self.on_profile_status_changed = None
@@ -117,23 +117,32 @@ class HandsFreeProfile:
             adapter.address,
             props))
 
-    def _media_connected(self, adapter, socket, mtu, peer):
-        """Peer has established an audio connection.
+    def _media_connected_changed(self, adapter, connected, socket, mtu, peer):
+        """A media connection has been established or closed.
         """
-        if self.on_audio_connected:
-            self.on_audio_connected(
+        if self.on_audio_connected_changed:
+            self.on_audio_connected_changed(
                 adapter=adapter,
+                connected=connected,
                 socket=socket,
                 mtu=mtu,
                 peer=peer)
 
+        if not connected:
+            self._mediamgr.start(adapter=adapter)
+
     def _media_setup_error(self, adapter, error):
-        """Error starting media streaming.
+        """Error setting up media connection.
         """
         if self.on_audio_setup_error:
             self.on_audio_setup_error(
                 adapter=adapter,
                 error=error)
+
+        # try listening again if we are not
+        # note: potential cause of log spam!
+        if self._mediamgr.status() == "idle":
+            self._mediamgr.start(adapter=adapter)
 
     def _profile_connected_changed(self, device, connected, phone):
         """Service-level connection has been established or ended with a
@@ -147,6 +156,10 @@ class HandsFreeProfile:
                 device=device,
                 connected=connected,
                 phone=phone)
+
+        # initiate handshake only after higher-level classes are alerted so
+        # they can subscribe to relevant events
+        phone.start()
 
     def _profile_unexpected_stop(self):
         """Profile was unregistered without our knowledge (something messing
