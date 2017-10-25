@@ -118,7 +118,7 @@ class PortAudioSink:
             # not sure how to do this more reliably
             logger.debug("stop() has been called, so cleaning up PortAudio safely.")
             self.ioloop.add_timeout(
-                delay=timedelta(milliseconds=250),
+                deadline=timedelta(milliseconds=250),
                 callback=self._stop_data_ready)
             return (self._underrun_frame * frame_count, pyaudio.paComplete)
 

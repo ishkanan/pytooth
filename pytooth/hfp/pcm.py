@@ -68,7 +68,7 @@ class PCMDecoder:
         """Runs the decoder in a try/catch just in case something goes wrong.
         """
         try:
-            self._worker_proc()
+            yield self._worker_proc()
         except Exception as e:
             logger.exception("Unhandled decode error.")
             self.stop()
