@@ -9,7 +9,7 @@ import sys
 
 from tornado.ioloop import IOLoop, PeriodicCallback
 
-from pytooth.gi import GtkMainLoop
+from pytooth.gi.loops import GtkMainLoop
 import pytooth.tests.config
 from pytooth.tests.errors import ConfigurationError
 

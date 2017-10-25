@@ -51,7 +51,8 @@ for lib in [("pygobject", "3.22.0", "xz"), ("dbus-python", "1.2.4", "gz")]:
         "cd {libname}-{libver}; "
         "./configure -prefix=$VIRTUAL_ENV -exec-prefix=$VIRTUAL_ENV >/dev/null; "
         "make >/dev/null; "
-        "sudo make install >/dev/null; ".format(
+        "sudo make install >/dev/null; "
+        "python setup.py install; ".format(
             srcdir=src_dir,
             libname=lib[0],
             libver=lib[1],
@@ -82,7 +83,8 @@ setup(
     author="Anthony Ishkan",
     author_email="anthony.ishkan@gmail.com",
     url="https://bitbucket.org/ishkanan/pytooth",
-    packages=find_packages(where="."),
+    packages=find_packages(".", include=["*"]),
+    package_dir={"": "."},
     package_data={
         "": ["*.txt", "*.rst", "*.md"]
     },
