@@ -200,9 +200,9 @@ class SerialPortConnection:
                 return
             if qentry:
                 qentry["future"].set_result(ret)
-            else:
-                if self.on_message:
-                    self.on_message(code=code, data=ret)
+            #else:
+            if self.on_message:
+                self.on_message(code=code, data=ret)
                     
     def _handle_brsf(self, params):
         """Supported features of the AG.

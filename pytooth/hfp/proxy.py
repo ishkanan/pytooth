@@ -76,34 +76,30 @@ class RemotePhone:
         logger.debug("RFCOMM message received: {}{}".format(
             code, " - {}".format(data) if data else ""))
 
-        # battery
-        if code == "CIEV" and "battchg" in data:
-            self._raise_event(name="battery", level=data["battchg"])
-
-        # carrier
-        if code == "COPS":
-            self._raise_event(name="carrier", carrier=data["name"])
+        # indicator update or initial values
+        if code in ["CIEV", "CIND"]:
+            if "battchg" in data:
+                self._raise_event(name="battery", level=int(data["battchg"]))
+            if "roam" in data:
+                self._raise_event(name="roaming", roaming=data["roam"] == '1')
+            if "service" in data:
+                self._raise_event(name="service", service=data["service"] == '1')
+            if "signal" in data:
+                self._raise_event(name="signal", level=int(data["signal"]))
 
         # callstatus (subset of)
         if code == "CIEV" and "call" in data:
             self._raise_event(
                 name="callstatus",
                 status="oncall" if data["call"] == 1 else "idle")
+
         # CLID
         if code == "CLIP":
             self._raise_event(name="clid", clid=data)
 
-        # roaming
-        if code == "CIEV" and "roam" in data:
-            self._raise_event(name="roaming", roaming=data == 1)
-
-        # service
-        if code == "CIEV" and "service" in data:
-            self._raise_event(name="service", service=data == 1)
-
-        # signal
-        if code == "CIEV" and "signal" in data:
-            self._raise_event(name="signal", level=data["signal"])
+        # carrier
+        if code == "COPS":
+            self._raise_event(name="carrier", carrier=data["name"])
 
     @coroutine
     def _do_handshake(self):

@@ -251,7 +251,7 @@ class MediaManager:
         # get SCO MTU
         try:
             mtu = sock.getsockopt(17, 1)
-            logger.debug("SCO MTU for adapter = {}".format(adapter, mtu))
+            logger.debug("SCO MTU for adapter {} = {}".format(adapter, mtu))
         except Exception as e:
             logger.exception("SCO MTU retrieve error for adapter {}".format(
                 adapter))

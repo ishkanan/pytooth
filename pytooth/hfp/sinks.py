@@ -179,6 +179,7 @@ class PortAudioSink:
             channels=self._decoder.channels,
             rate=self._decoder.sample_rate,
             output=True,
+            start=False,
             output_device_index=self._device_index,
             stream_callback=self._data_required)
         self._pcm_format_set = True
