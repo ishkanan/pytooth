@@ -1,10 +1,12 @@
 
 import ctypes as ct
+from functools import partial
 import logging
-import select
 import socket
 from threading import Thread
 from time import sleep
+
+from tornado.ioloop import IOLoop
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,7 @@ class SBCDecoder:
     """
 
     def __init__(self, libsbc_so_file):
+        self.ioloop = IOLoop.current()
         self._libsbc = ct.CDLL(libsbc_so_file)
         self._started = False
         self._worker = None
@@ -81,7 +84,7 @@ class SBCDecoder:
         self._sbc = sbc_t()
         self._sbc_populated = False
         self._socket = socket
-        self._socket.setblocking(False)
+        self._socket.setblocking(True)
         self._worker = Thread(
             target=self._do_decode,
             name="SBCDecoder",
@@ -96,6 +99,9 @@ class SBCDecoder:
             return
 
         self._started = False
+        self._stream = None
+        self._socket = None
+        self._read_mtu = None
         self._worker.join()
 
     @property
@@ -125,12 +131,11 @@ class SBCDecoder:
     def _do_decode(self):
         """Runs the decoder in a try/catch just in case something goes wrong.
         """
-
         try:
             self._worker_proc()
         except Exception as e:
             logger.exception("Unhandled decode error.")
-            self._started = False
+            self.ioloop.add_callback(self.stop)
             if self.on_fatal_error:
                 self.on_fatal_error(error=e)
         finally:
@@ -139,11 +144,10 @@ class SBCDecoder:
 
     def _worker_proc(self):
         """Does the decoding of SBC samples to PCM samples. Runs in an infinite
-        loop until stopped.
+        loop until stopped. Note the data format seems to be Big Endian/MSB.
         """
 
         # initialise
-        MIN_PACKET_LEN = 14
         bufsize = self._read_mtu
         buf = ct.create_string_buffer(bufsize)
         self._libsbc.sbc_init(ct.byref(self._sbc), 0)
@@ -153,27 +157,25 @@ class SBCDecoder:
         written = ct.c_size_t() # optimisation
 
         # loop until stopped
-        sock_buffer = b''
+        leftover_sbc = b''
         while self._started:
 
             # read more RTP data in non-blocking mode
+            # note: RTP boundaries are MTU boundaries
+            packet = b''
             try:
-                result = select.select([self._socket.fileno()], [], [], 0.25)
-                data = b''
-                if len(result[0]) == 1:
-                    data = self._socket.recv(bufsize)#, socket.MSG_WAITALL)
+                packet = self._socket.recv(
+                    self._read_mtu,
+                    socket.MSG_WAITALL)
             except Exception as e:
                 logger.error("Socket read error - {}".format(e))
-            
-            # append read to buffer and decode if enough bytes
-            sock_buffer += data
-            if len(sock_buffer) < MIN_PACKET_LEN:
+            if len(packet) == 0:
+                sleep(0.1) # CPU busy safety
                 continue
-            data = sock_buffer
             
             # out-of-order packet?
             # note: we need to allow for 16-bit reset
-            seq = data[2] + (data[3] << 8)
+            seq = packet[3] + (packet[2] << 8)
             if seq < prev_seq and prev_seq - seq <= 50:
                 logger.debug("Skipping old packet - prev={}, seq={}".format(
                     prev_seq, seq))
@@ -181,17 +183,15 @@ class SBCDecoder:
             prev_seq = seq
 
             # strip RTP padding
-            has_padding = bool((data[0] & 0x04) >> 2)
+            has_padding = bool((packet[0] & 0x04) >> 2)
             if has_padding:
-                num_pad_bytes = data[-1]
-                logger.debug("Stripping {} RTP pad bytes.".format(
+                num_pad_bytes = packet[-1]
+                logger.debug("Stripping {} RTP pad bytes off the end.".format(
                     num_pad_bytes))
-                data = data[:-num_pad_bytes]
-        
-            # strip RTP
-            data = data[MIN_PACKET_LEN-1:] # RTP header (12) + RTP payload (1)
-        
-            #logger.debug("Got {} bytes to decode.".format(len(data)))
+                packet = packet[:-num_pad_bytes]
+
+            # strip RTP header (12) and payload header (1)
+            data = packet[13:]
             buf.value = data
             readlen = len(data)
                 
@@ -225,7 +225,7 @@ class SBCDecoder:
             to_decode.value = readlen
             to_write.value = decode_bufsize
 
-            # decode loop
+            # decode loop, process as many frames as possible
             total_decoded = 0
             total_written = 0
             while to_decode.value > 0:
@@ -252,13 +252,11 @@ class SBCDecoder:
                 to_write.value -= written.value
                 total_written += written.value
 
-            # remove total processed bytes from buffer
-            sock_buffer = sock_buffer[MIN_PACKET_LEN + total_decoded:]
-
-            # hand over decoded data
+            # hand over decoded data on the main thread
             if self.on_data_ready:
-                self.on_data_ready(
-                    data=decode_buf.raw[0:total_written])
+                self.ioloop.add_callback(partial(
+                    self.on_data_ready,
+                    data=decode_buf.raw[0:total_written]))
 
     def _populate_sbct(self, data):
         """Returns a sbc_t instance based on provided RTP packet that contains

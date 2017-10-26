@@ -269,26 +269,30 @@ class MediaManager:
         """Performs actions based on newly-received streaming status.
         """
         context = self._connections[adapter]
-        prev_status = context["streamstatus"]
         context["streamstatus"] = status
         transport = context["transport"]
 
-        # acquire the transport to begin receiving data
-        # note: we don't manually release it, that is done via a remote device
-        #       disconnect event
-        if not transport.acquired and status == "playing":
-            try:
-                transport.acquire()
-            except Exception as e:
-                logger.exception(e)
-                if self.on_media_setup_error:
-                    self.on_media_setup_error(
-                        adapter=adapter,
-                        error="{}".format(e))
-        elif status in ["paused", "stopped"]:
-            # bluez5 has taken back ownership of the transport
-            # dirty hack, but watevs...
-            transport._acquired = False
+        # transport could be released by bluez which is weird but possible
+        if not transport:
+            logger.warning("Bluez5 released the transport, will not attempt "
+                "to acquire it.")
+        else:
+            # acquire the transport to begin receiving data
+            # note: we don't manually release it, that is done by a
+            #       remote device disconnect event
+            if not transport.acquired and status == "playing":
+                try:
+                    transport.acquire()
+                except Exception as e:
+                    logger.exception(e)
+                    if self.on_media_setup_error:
+                        self.on_media_setup_error(
+                            adapter=adapter,
+                            error="{}".format(e))
+            # elif status in ["paused", "stopped"]:
+            #     # bluez5 has taken back ownership of the transport
+            #     # dirty hack, but watevs...
+            #     transport._acquired = False
 
         # state update
         if self.on_stream_state_changed:
@@ -337,3 +341,4 @@ class MediaManager:
                     adapter=adapter,
                     transport=transport,
                     state="released")
+            self._connections[adapter]["transport"] = None
