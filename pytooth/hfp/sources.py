@@ -1,9 +1,14 @@
 
-import logging
 from datetime import timedelta
+import logging
+import select
+from threading import Thread
+from time import sleep
 
 import pyaudio
 from tornado.ioloop import IOLoop
+
+from pytooth.other.buffers import ThreadSafeMemoryBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +18,7 @@ class PortAudioSource:
     format) an SCO socket.
     """
 
-    def __init__(self, encoder, socket, write_mtu, card_name):
+    def __init__(self, socket, write_mtu, card_name):
         # get card index of specified card
         self._recorder = pyaudio.PyAudio()
         try:
@@ -55,10 +60,14 @@ class PortAudioSource:
             start=False,
             input_device_index=self._device_index,
             stream_callback=self._data_ready)
-        self._buffer = b''
+        self._buffer = ThreadSafeMemoryBuffer()
+        self._socket_pump = Thread(
+            target=self._socket_pump_proc,
+            name="PASourceSocketPump",
+            daemon=True
+        )
         self._started = True
-        #self._encoder.start(
-        #    stream=self._stream)
+        self._socket_pump.start()
         self._stream.start_stream()
 
     def stop(self):
@@ -68,12 +77,10 @@ class PortAudioSource:
             return
 
         self._started = False
-        #self._encoder.stop()
-        #self._socket.close()
+        self._socket_pump.join()
+        self._socket_pump = None
         self._socket = None
-        #self._stream.stop_stream()
-        #self._stream.close()
-        #self._recorder.terminate()
+        self._buffer = None        
 
     def _stop_data_ready(self):
         """Helper to clean up stream and player. Called indirectly from
@@ -97,20 +104,8 @@ class PortAudioSource:
                 callback=self._stop_data_ready)
             return (None, pyaudio.paComplete)
 
-        # TODO: send in write_mtu chunks
-        #self._buffer += in_data
-        #logger.debug("{} new bytes, {} buffer bytes.".format(
-        #    len(self._buffer), len(in_data)))
-        #if len(self._buffer) >= self._write_mtu:
-        #    data = self._buffer[0:self._write_mtu]
-        #    self._buffer = self._buffer[self._write_mtu:]
-
-        try:
-            self._socket.send(in_data)
-        except Exception as e:
-            logger.error("Error sending PCM data to SCO socket - {}".format(e))
-            #logger.debug("{} buffer bytes after send.".format(
-            #    len(self._buffer)))
+        # buffer the data for the pump
+        self._buffer.append(in_data)
 
         # more samples!
         return (None, pyaudio.paContinue)
@@ -123,3 +118,50 @@ class PortAudioSource:
         self.stop()
         if self.on_fatal_error:
             self.on_fatal_error(error)
+
+    def _socket_pump_proc(self):
+        """Sends buffered data as fast as possible to the SCO socket. Note this
+        isn't running in a Tornado-style loop since we have to operate as fast
+        as possible, and that involves blocking operations.
+        """
+
+        # calculate sleep delay so we don't fall too far behind
+        # => 8000 samples/src * 2-byte samples = 16000 bytes/sec
+        # => 16000 bytes / MTU = X transmissions/sec
+        # => 1000 msec / X = Y msec/transmission
+        delay = int(1000 / (16000 / self._write_mtu))
+
+        logger.debug("SCO socket source pump has started, delay = {}".format(
+            delay))
+
+        # 1) fetch data to send
+        # 2) send data with retry
+        # 3) repeat until apocalypse
+        while self._started:
+
+            # fetch in MTU-sized chunks
+            if self._buffer.length < self._write_mtu:
+                logger.debug("Pump waiting for data to send.")
+                sleep(delay) # CPU busy safety
+                continue
+            data = self._buffer.get(self._write_mtu)
+            
+            # try send data, aborting on socket error
+            while self._started:
+                try:
+                    result = select.select([], [self._socket.fileno()], [], 0)
+                    if len(result[1]) == 0:
+                        # socket not ready for a write, so wait
+                        logger.debug("Pump waiting for socket to be writeable.")
+                        sleep(delay) # CPU busy safety
+                        continue
+                    self._socket.sendall(data)
+                    logger.debug("Pump sent data to socket.")
+                    sleep(delay) # temp CPU busy safety
+                    break
+                except Exception as e:
+                    logger.error("Error sending PCM data to SCO socket - {}".format(e))
+                    sleep(delay) # CPU busy safety
+                    break
+
+        logger.debug("SCO socket source pump has gracefully stopped.")

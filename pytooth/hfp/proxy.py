@@ -77,7 +77,7 @@ class RemotePhone:
             code, " - {}".format(data) if data else ""))
 
         # indicator update or initial values
-        if code in ["CIEV", "CIND"]:
+        if code in ["CIEV", "CIND"] and isinstance(data, dict):
             if "battchg" in data:
                 self._raise_event(name="battery", level=int(data["battchg"]))
             if "roam" in data:

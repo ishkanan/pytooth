@@ -7,7 +7,7 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.hfp.pcm import PCMDecoder, PCMEncoder
+from pytooth.hfp.pcm import PCMDecoder
 from pytooth.hfp.sinks import PortAudioSink
 from pytooth.hfp.sources import PortAudioSource
 
@@ -128,12 +128,11 @@ class TestApplication:
             socket=self._socket,
             read_mtu=self._mtu,
             card_name="pulse",
-            buffer_secs=0)
+            buffer_secs=1)
         self.sink.start()
         logger.info("Built new PortAudioSink with PCMDecoder.")
 
         self.source = PortAudioSource(
-            encoder=PCMEncoder(),
             socket=self._socket,
             write_mtu=self._mtu,
             card_name="pulse")

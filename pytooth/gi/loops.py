@@ -14,8 +14,8 @@ class GtkMainLoop:
     """Provides a GI main loop that encapsulates a Tornado IOLoop.
     """
 
-    DEADLINE_TORNADO = 50   # msecs to run Tornado IOLoop
-    DEADLINE_GLIB = 50      # msecs to run GLib IOLoop
+    DEADLINE_TORNADO = 75   # msecs to run Tornado IOLoop
+    DEADLINE_GLIB = 25      # msecs to run GLib IOLoop
 
     def __init__(self, io_loop):
         self.__deadline = timedelta(milliseconds=GtkMainLoop.DEADLINE_TORNADO)
