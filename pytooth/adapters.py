@@ -1,6 +1,7 @@
 """http://www.bluez.org/bluez-5-api-introduction-and-porting-guide/
 """
 
+from functools import partial
 import logging
 
 from dbus import UInt32
@@ -29,7 +30,6 @@ class BaseAdapter:
         self._path = None
 
         # other
-        self._known_adapters = []
         self._preferred_address = preferred_address
         self._started = False
         
@@ -55,67 +55,68 @@ class BaseAdapter:
             path_keyword = "path")
 
     def start(self):
-        """Starts interaction with bluez. If already started, this does nothing.
+        """Starts interaction with Bluez. If already started, this does nothing.
         """
         if self._started:
             return
 
         self._started = True
-        self.io_loop.add_callback(callback=self._check_adapter_available)
-        logger.debug("Checking for '{}' bluetooth adapter...".format(
-            self._preferred_address if self._preferred_address \
-            else "first available"))
+        self.io_loop.add_callback(callback=self._find_suitable_adapter)
+        if self._preferred_address:
+            logger.debug("Checking for adapter with address '{}'...".format(
+                self._preferred_address))
+        else:
+            logger.debug("Checking for first available adapter...")
 
     def stop(self):
-        """Stops interaction with bluez. If already stopped, this does nothing.
+        """Stops interaction with Bluez. If already stopped, this does nothing.
         """
         if not self._started:
             return
 
         self._started = False
-        self._known_adapters = []
         self._adapter_proxy = None
-        
         if self.connected:
-            self._last_address = self._address
             self._address = None
+            self._connected = False
+            self._last_address = self._address
             self._last_path = self._path
             self._path = None
-            self._connected = False
 
     @property
     def address(self):
-        """Returns the address of the connected adapter (if any), or None if
-        no adapter is connected.
+        """Returns the address of the connected adapter, or None if no adapter
+        is connected.
         """
         return self._address
 
     @property
-    def last_address(self):
-        """Returns the address of the last connected adapter (if any), or None
-        no adapter has ever connected and disconnected.
-        """
-        return self._last_address
-
-    @property
     def connected(self):
-        """Returns True if desired adapter is connected.
+        """Returns True if a suitable adapter has been found and is connected,
+        False otherwise.
         """
         return self._connected
 
     @property
-    def path(self):
-        """Returns the DBus object path of the connected adapter (if any), or
-        None if no adapter is connected.
+    def last_address(self):
+        """Returns the address of the last suitable adapter, or None if no
+        adapter has ever been found and formerly connected.
         """
-        return self._path
+        return self._last_address
 
     @property
     def last_path(self):
-        """Returns the DBus object path of the last connected adapter (if any),
-        or None if no adapter has ever connected.
+        """Returns the DBus object path of the last connected adapter, or None
+        if no adapter has ever connected.
         """
         return self._last_path
+
+    @property
+    def path(self):
+        """Returns the DBus object path of the current suitable and connected
+        adapter, or None if no adapter is connected.
+        """
+        return self._path
 
     def set_discoverable(self, enabled, timeout=None):
         """Toggles visibility of the BT subsystem to other searching BT devices.
@@ -124,8 +125,8 @@ class BaseAdapter:
 
         if not self._started:
             raise InvalidOperationError("Not started.")
-        if self._adapter_proxy is None:
-            raise InvalidOperationError("No adapter available.")
+        if not self._connected:
+            raise InvalidOperationError("No suitable adapter available.")
             
         try:
             self._adapter_proxy.set("Discoverable", enabled)
@@ -140,8 +141,8 @@ class BaseAdapter:
 
         if not self._started:
             raise InvalidOperationError("Not started.")
-        if self._adapter_proxy is None:
-            raise InvalidOperationError("No adapter available.")
+        if not self._connected:
+            raise InvalidOperationError("No suitable adapter available.")
 
         try:
             self._adapter_proxy.set("Pairable", enabled)
@@ -149,49 +150,35 @@ class BaseAdapter:
         except Exception as e:
             raise CommandError(e)
 
-    def _check_adapter_available(self):
-        """Attempts to get the specified adapter proxy object. This is called
-        repeatedly as it's the most reliable detection method.
+    def _find_suitable_adapter(self):
+        """Searches for a suitable adapter based on preferred address or
+        'best available'. Executes repeatedly until an adapter is found.
+        This is initiated on start() and on power status change.
         """
-
-        # infinite check loop breakout
         if not self._started:
             return
 
         try:
-            # get first or preferred BT adapter
-            if len(self._known_adapters) == 0:
-                # this will kick-start the property change signals
-                adapter = Bluez5Utils.find_adapter(
-                    bus=self._bus,
-                    address=self._preferred_address)
-            else:
-                adapter = Bluez5Utils.find_adapter_from_paths(
-                    bus=self._bus,
-                    paths=self._known_adapters,
-                    address=self._preferred_address)
+            # get either:
+            # 1) first available adapter, or
+            # 2) specific adapter based on preferred address
+            # note: this will start the property change signals
+            adapter = Bluez5Utils.find_adapter(
+                bus=self._bus,
+                address=self._preferred_address)
 
-            # check adapter connection status
-            is_found = adapter is not None and self._adapter_proxy is None
-            is_lost = adapter is None and self._adapter_proxy is not None
-            
-            # notify
-            if is_lost:
+            if adapter is None:
                 logger.info("No suitable adapter is available.")
-                self._adapter_proxy = None
-                self._last_address = self._address
-                self._address = None
-                self._last_path = self._path
-                self._path = None
-            elif is_found:
-                logger.info("Adapter '{} - {}' is available.".format(
+            else:
+                logger.info("Found suitable adapter - name={}, address={}".format(
                     adapter.get("Name"),
                     adapter.get("Address")))
                 self._adapter_proxy = adapter
                 self._address = self._adapter_proxy.get("Address")
+                # we have to assume this as Bluez does not alert us if the
+                # adapter has power before we started this library
+                self._connected = self._adapter_proxy.get("Powered")
                 self._path = self._adapter_proxy.path
-            if (is_found or is_lost) and self.on_connected_changed:
-                self._connected = is_found
                 self.io_loop.add_callback(
                     callback=self.on_connected_changed,
                     adapter=self,
@@ -199,10 +186,12 @@ class BaseAdapter:
 
         except Exception as e:
             logger.exception("Failed to get suitable adapter.")
-            
-        self.io_loop.call_later(
-            delay=self.retry_interval,
-            callback=self._check_adapter_available)
+        
+        # try again if no suitable adapter was found
+        if not self._connected:
+            self.io_loop.call_later(
+                delay=self.retry_interval,
+                callback=self._find_suitable_adapter)
 
     def _propertieschanged(self, interface, changed, invalidated, path):
         """Fired by the system bus subscription when a Bluez5 object property
@@ -219,18 +208,28 @@ class BaseAdapter:
         logger.debug("SIGNAL: interface={}, path={}, changed={}, "
             "invalidated={}".format(interface, path, changed, invalidated))
 
-        # make it known to check it later
-        if path not in self._known_adapters:
-            logger.debug("Remembering adapter {} for later polling.".format(
-                path))
-            self._known_adapters.append(path)
-
-        # pass changes to event handler if adapter is the one we want to use
+        # is it the adapter we have found suitable?
         if path == self.path:
+            # alert to property changes
             if self.on_properties_changed:
-                self.on_properties_changed(
+                self.io_loop.add_callback(partial(
+                    self.on_properties_changed,
                     adapter=self,
-                    props=changed)
+                    props=changed))
+
+            # react if adapter was powered off (i.e. disconnected)
+            if "Powered" in changed and not changed["Powered"]:
+                self._adapter_proxy = None
+                self._connected = False
+                self._last_address = self._address
+                self._address = None
+                self._last_path = self._path
+                self._path = None
+                self.io_loop.add_callback(
+                    callback=self.on_connected_changed,
+                    adapter=self,
+                    connected=False)
+                self.io_loop.add_callback(callback=self._find_suitable_adapter)
 
 class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.

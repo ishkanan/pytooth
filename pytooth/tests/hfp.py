@@ -47,17 +47,27 @@ class TestApplication:
 
     def stop(self):
         # cleanup
-        self.hfp.set_discoverable(enabled=False)
-        self.hfp.set_pairable(enabled=False)
+        if self.hfp.adapter_connected:
+            self.hfp.set_discoverable(enabled=False)
+            self.hfp.set_pairable(enabled=False)
         self.hfp.stop()
         self._stop_audio()
 
     def _adapter_connected_changed(self, adapter, connected):
-        # be discoverable if adapter is connected
-        self.hfp.set_discoverable(enabled=connected)
-        self.hfp.set_pairable(enabled=connected)
+        logger.debug("Adapter {} is now {}.".format(
+            adapter, "connected" if connected else "disconnected"))
+
+        # be discoverable and pairable if adapter is connected
+        # note: it is an error to call this if no adapter is avilable
+        if connected:
+            self.hfp.set_discoverable(enabled=True)
+            self.hfp.set_pairable(enabled=True)
 
     def _audio_connected_changed(self, adapter, connected, socket, mtu, peer):
+        """Fired when the remote device establishes an audio connection with
+        us.
+        """
+        
         # store for later use
         self._socket = socket
         self._mtu = mtu
@@ -68,7 +78,7 @@ class TestApplication:
         else:
             self._stop_audio()
 
-    def _audio_setup_error(self, adapter, status, error):
+    def _audio_setup_error(self, adapter, error):
         """Fired if an audio link could not be established. This higher-level
         class doesn't have to do anything to cleanup the connection(s) or audio
         paths.

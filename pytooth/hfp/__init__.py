@@ -69,6 +69,13 @@ class HandsFreeProfile:
         self._profilemgr.stop()
         self._started = False
 
+    @property
+    def adapter_connected(self):
+        """Returns if a suitable Bluetooth adapter is connected and in-use
+        by this profile.
+        """
+        return self._adapter.connected
+
     def set_discoverable(self, enabled, timeout=None):
         """Set discoverable status.
         """

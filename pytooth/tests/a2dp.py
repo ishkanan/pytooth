@@ -21,13 +21,13 @@ class TestApplication:
     def __init__(self, bus, config):
         self.sink = None
 
-        # profile
+        # profile setup
         a2dp = AdvancedAudioProfile(
             system_bus=bus,
             adapter_class=OpenPairableAdapter,
             preferred_address=config["preferredaddress"],
             retry_interval=config["retryinterval"],
-            io_loop=IOLoop.instance())
+            io_loop=IOLoop.current())
         a2dp.on_adapter_connected_changed = self._adapter_connected_changed
         a2dp.on_audio_setup_error = self._audio_setup_error
         a2dp.on_audio_stream_state_changed = self._audio_stream_state_changed
@@ -42,47 +42,75 @@ class TestApplication:
 
     def stop(self):
         # cleanup
-        self.a2dp.set_discoverable(enabled=False)
-        self.a2dp.set_pairable(enabled=False)
+        if self.a2dp.adapter_connected:
+            self.a2dp.set_discoverable(enabled=False)
+            self.a2dp.set_pairable(enabled=False)
         self.a2dp.stop()
-        if self.sink:
-            self.sink.stop()
-            self.sink = None
+        self._stop_audio()
 
     def _adapter_connected_changed(self, adapter, connected):
-        # be discoverable if adapter is connected
-        self.a2dp.set_discoverable(enabled=connected)
-        self.a2dp.set_pairable(enabled=connected)
+        logger.debug("Adapter {} is now {}.".format(
+            adapter, "connected" if connected else "disconnected"))
+
+        # be discoverable and pairable if adapter is connected
+        # note: it is an error to call this if no adapter is avilable
+        if connected:
+            self.a2dp.set_discoverable(enabled=True)
+            self.a2dp.set_pairable(enabled=True)
 
     def _audio_setup_error(self, adapter, error):
-        # error setting up audio link, log and forget
+        """Fired if an audio link could not be established. This higher-level
+        class doesn't have to do anything to cleanup the connection(s) or audio
+        paths.
+        """
         logger.error("Cannot establish audio link on adapter {} - {}".format(
             adapter, error))
 
     def _audio_stream_state_changed(self, adapter, transport, state):
-        # we make sinks or destroy them...
+        """Fired when the audio stream state changes. There is no explicit
+        connected/disconnected as it is more suitable to simply react off the
+        status rather than a binary flag.
+        """
         if state == "playing" and self.sink is None:
-            self.sink = PortAudioSink(
-                decoder=SBCDecoder(
-                    libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
-                socket=transport.socket,
-                read_mtu=transport.read_mtu,
-                card_name="pulse",
-                buffer_secs=2)
-            self.sink.start()
-            logger.info("Built new PortAudioSink with SBCDecoder.")
+            self._start_audio(transport=transport)
         elif state == "released" and self.sink:
-            self.sink.stop()
-            self.sink = None
-            logger.info("Destroyed PortAudioSink.")
+            self._stop_audio()
 
     def _audio_track_changed(self, track):
         logger.info("Track changed - {}".format(track))
         
     def _device_connected_changed(self, device, connected):
+        """Fired when a device connects but has not completed initial handshake
+        with the protocol.
+        """
         logger.info("Device {} has {}connected.".format(
-            "" if connected else "not "))
+            device, "" if connected else "not "))
 
     def _profile_status_changed(self, available):
+        """Fired when the profile is enabled/disabled at the Bluez5 level. This
+        really only occurs if a serious issue with the Bluetooth stack is
+        encountered by the OS.
+        """
         logger.info("A2DP profile is {}avaiable.".format(
             "" if avaiable else "not "))
+
+    def _start_audio(self, transport=None):
+        # streaming has started, obviously
+
+        self.sink = PortAudioSink(
+            decoder=SBCDecoder(
+                libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+            socket=transport.socket,
+            read_mtu=transport.read_mtu,
+            card_name="pulse",
+            buffer_secs=2)
+        self.sink.start()
+        logger.info("Built new PortAudioSink with SBCDecoder.")
+
+    def _stop_audio(self):
+        # no more streaming, obviously
+
+        if self.sink:
+            self.sink.stop()
+            self.sink = None
+            logger.info("Destroyed PortAudioSink.")
