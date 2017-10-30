@@ -99,7 +99,6 @@ class SBCDecoder:
             return
 
         self._started = False
-        self._stream = None
         self._socket = None
         self._read_mtu = None
         self._worker.join()
@@ -137,7 +136,9 @@ class SBCDecoder:
             logger.exception("Unhandled decode error.")
             self.ioloop.add_callback(self.stop)
             if self.on_fatal_error:
-                self.on_fatal_error(error=e)
+                self.ioloop.add_callback(partial(
+                    self.on_fatal_error,
+                    error=e))
         finally:
             logger.debug("SBC decoder stopped - cleaning up libsbc.")
             self._libsbc.sbc_finish(ct.byref(self._sbc), 0)
@@ -213,7 +214,7 @@ class SBCDecoder:
                         self._sbc.flags,
                         self._sbc.endian))
                 if self.on_pcm_format_ready:
-                    self.on_pcm_format_ready()
+                    self.ioloop.add_callback(self.on_pcm_format_ready)
                 decode_bufsize = \
                     int(bufsize / SBC_MIN_FRAME_LEN + 1) * \
                     self._libsbc.sbc_get_codesize(ct.byref(self._sbc))
