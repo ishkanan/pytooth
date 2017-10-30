@@ -124,7 +124,7 @@ $ python setup.py install
 ```
 
 ### Install: Non-interactive
-Pytooth provides a bare-bones test script for each supported Bluetooth profile (A2DP and HFP), located in the **pytooth/tests** folder. The A2DP script provides full playback functionality with no user interaction required. The HFP script provides audio functionality, but no remote control functions (e.g. answer, hang-up, etc).
+Pytooth provides a bare-bones test script for each supported Bluetooth profile (A2DP and HFP), located in the **pytooth/tests** folder. The A2DP script provides full playback functionality, where the HFP script provides audio functionality but no remote control functions (e.g. answer, hang-up, etc).
 
 First, install the library with:
 
@@ -140,7 +140,13 @@ The installer creates a test command, **pytooth-test**, that is used to launch o
 $ pytooth-test -c <config file>
 ```
 
-where ```<config file>``` is a copy of (or the actual file) **pytooth/tests/test_config.json**. The ***preferredaddress*** value can contain the MAC address of a specific Bluetooth adapter (if more than one is available) or blank to use the first available one. The ***profiles*** value is a list of profiles to launch, where valid items are "a2dp" and "hfp". **retryinterval** is the time, in seconds, that the library will search for a suitable Bluetooth adapter to use, and can usually be left at the default value (15).
+where ```<config file>``` is a copy of (or the actual file) **pytooth/tests/test_config.json**.
+
+**Key** | **Value**
+--- | ---
+preferredaddress | May contain the MAC address of a specific Bluetooth adapter (if more than one is available), or blank to use the first available one (non-deterministic)
+profiles | A list of profiles to launch, where valid items are "a2dp" and "hfp"
+retryinterval | Time, in seconds, that the library will search for a suitable Bluetooth adapter to use; can usually be left at the default value (15)
 
 ### Install: Library development
 To install the library for development purposes, clone the repository and invoke the ```setup.py``` script with the **develop** command, like so:
@@ -153,5 +159,4 @@ $ python setup.py develop
 The test scripts can be run as described in the section above.
 
 # Contact "Us"
-The lead developer, Anthony Ishkan (anthony.ishkan@gmail.com)
-He only bites if he's hungover or hungry =)
+The lead developer, Anthony Ishkan (anthony.ishkan@gmail.com). He only bites if he's hungover or hungry =)
