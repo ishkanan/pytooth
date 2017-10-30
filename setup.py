@@ -18,59 +18,35 @@ with open('requirements_dev.txt') as f:
 with open('dependencies.txt') as f:
     dependency_requirements = f.read().split("\n")
 
-# supported platform?
-# dist = platform.linux_distribution()
-# if "xenial" in dist:
-#     dist = "xenial"
-# else:
-#     print("ERROR: Linux distribution is not supported.")
-#     raise NotImplementedError()
-dist = "xenial"
-
 # prepare
 packages_dir = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     "packages")
-bin_dir = os.path.join(
-    packages_dir,
-    "bin/{}".format(dist))
 src_dir = os.path.join(
     packages_dir,
     "src")
-print("packages_dir = {}\nbin_dir = {}\nsrc_dir = {}".format(
-    packages_dir, bin_dir, src_dir))
+print("packages_dir = {}\nsrc_dir = {}".format(
+    packages_dir, src_dir))
 
-# install source libraries
+# compile and install sources
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
-for lib in [("pygobject", "3.22.0", "xz"), ("dbus-python", "1.2.4", "gz")]:
+sources = [
+    ("pygobject", "3.22.0"),
+    ("dbus-python", "1.2.4"),
+    ("sbc", "1.2.0")
+]
+for lib in sources:
     print("Installing {}-{} library from source ...".format(
         lib[0], lib[1]))
     os.system(
         "cd '{srcdir}'; "
-        "tar xf {libname}-{libver}.tar.{ext}; "
+        "tar xf {libname}-{libver}.tar.gz; "
         "cd {libname}-{libver}; "
         "./configure -prefix=$VIRTUAL_ENV -exec-prefix=$VIRTUAL_ENV >/dev/null; "
         "make >/dev/null; "
         "sudo make install >/dev/null; "
-        "python setup.py install; ".format(
+        "if [ -f setup.py ]; then python setup.py install; fi; ".format(
             srcdir=src_dir,
-            libname=lib[0],
-            libver=lib[1],
-            ext=lib[2]))
-
-# install pre-compiled libraries
-os.system(
-    "sudo mkdir -p /usr/local/lib; "
-    "sudo chmod 755 /usr/local/lib")
-for lib in [("libsbc", "1.2.0")]:
-    print("Installing {}-{} pre-compiled library to /usr/local/lib ...".format(
-        lib[0], lib[1]))
-    os.system(
-        "sudo cp '{bindir}/{libname}.so.{libver}' /usr/local/lib/; "
-        "(cd /usr/local/lib && {{ sudo ln -s -f {libname}.so.{libver} {libname}.so.1 || {{ sudo rm -f {libname}.so.1 && sudo ln -s {libname}.so.{libver} {libname}.so.1; }}; }}); "
-        "(cd /usr/local/lib && {{ sudo ln -s -f {libname}.so.{libver} {libname}.so || {{ sudo rm -f {libname}.so && sudo ln -s {libname}.so.{libver} {libname}.so; }}; }}); "
-        "sudo ldconfig -n /usr/local/lib".format(
-            bindir=bin_dir,
             libname=lib[0],
             libver=lib[1]))
 
@@ -101,8 +77,9 @@ setup(
 
 # clean up working folders
 print("Cleaning up source folders ...")
-os.system(
-    "sudo rm -Rf '{srcdir}/dbus-python-1.2.4/'; "
-    "sudo rm -Rf '{srcdir}/pygobject-3.22.0/'; ".format(
-        srcdir=src_dir))
-
+for lib in sources:
+    os.system(
+        "sudo rm -Rf '{srcdir}/{libname}-{libver}/'; ".format(
+            srcdir=src_dir,
+            libname=lib[0],
+            libver=lib[1]))
