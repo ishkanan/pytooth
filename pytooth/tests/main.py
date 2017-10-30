@@ -87,8 +87,9 @@ def main():
                 profile))
     if len(apps) == 0:
         logging.error("No valid profiles loaded - exiting.")
-
-    # run the test app
+        return
+        
+    # run the test apps
     logging.info("Running...")
     signal.signal(signal.SIGINT, signal_handler)
     PeriodicCallback(partial(
