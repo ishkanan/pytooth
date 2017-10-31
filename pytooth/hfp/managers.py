@@ -222,6 +222,10 @@ class MediaManager:
         """
         try:
             sock = self._connections[adapter]["socket"]
+            ep = self._connections[adapter].get("epoll")
+            if ep:
+                ep.unregister(sock)
+                ep.close()
             if self._connections[adapter]["status"] == "listening":
                 self.io_loop.remove_handler(sock.fileno())
             sock.close()
@@ -293,6 +297,9 @@ class MediaManager:
         }
 
         # connection close detection
+        ep = select.epoll()
+        ep.register(sock, select.EPOLLERR | select.EPOLLHUP)
+        self._connections[adapter]["epoll"] = ep
         self.io_loop.add_callback(
             callback=partial(self._sco_close_check, adapter=adapter))
 
@@ -316,20 +323,22 @@ class MediaManager:
         if adapter not in self._connections:
             return
 
+        ep = self._connections[adapter]["epoll"]
         sock = self._connections[adapter]["socket"]
         closed = False
 
         try:
-            # timeout of 0 = poll, no blocking
-            result = select.select([sock.fileno()], [], [], 0)
-        except select.error:
-            closed = True
-        except ValueError:
-            # fileno() is -1 when socket closes
+            # timeout of 0 means no blocking
+            result = ep.poll(1.0)
+            closed = len(result) != 0
+        except Exception as e:
+            # assuming any error with the socket is a close
+            logger.error("EPOLL error in _sco_close_check() - {}".format(
+                e))
             closed = True
 
         if closed:
-            logger.debug("Established SCO socket closed for adapter {}.".format(
+            logger.info("Established SCO socket closed for adapter {}.".format(
                 adapter))
             # stop tracking and alert
             self.stop(adapter=adapter)
