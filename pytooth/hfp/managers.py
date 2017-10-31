@@ -224,7 +224,7 @@ class MediaManager:
             sock = self._connections[adapter]["socket"]
             ep = self._connections[adapter].get("epoll")
             if ep:
-                ep.unregister(sock)
+                #ep.unregister(sock)
                 ep.close()
             if self._connections[adapter]["status"] == "listening":
                 self.io_loop.remove_handler(sock.fileno())

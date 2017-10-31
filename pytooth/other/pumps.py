@@ -5,6 +5,7 @@ import logging
 import select
 import socket
 from threading import Thread
+from time import sleep
 
 from tornado.ioloop import IOLoop
 
@@ -64,11 +65,11 @@ class RealTimeSocketPump:
         self._send_buffer = None
 
     def write(self, data):
-        """Queues data to send to the socket. Raises an InvalidOperation error
+        """Queues data to send to the socket. Raises InvalidOperationError
         if the pump is not started.
         """
         if not self._started:
-            raise InvalidOperationError("Pump is not started.")
+            raise InvalidOperationError("Socket pump is not started.")
 
         self._send_buffer.append(data)
 
@@ -78,7 +79,7 @@ class RealTimeSocketPump:
         try:
             self._worker_proc()
         except Exception as e:
-            logger.exception("Unhandled pump error.")
+            logger.exception("Unhandled socket pump error.")
             self.ioloop.add_callback(self.stop)
             if self.on_fatal_error:
                 self.ioloop.add_callback(partial(
@@ -89,30 +90,42 @@ class RealTimeSocketPump:
         """Performs the reads/writes on the socket in a dedicated thread.
         """
 
-        logger.debug("BiDirectionalSocketPump worker thread has started.")
+        logger.debug("Socket pump worker thread has started.")
 
-        delay = self._nodata_wait_msecs / 1000
-        
+        # setup
+        nodata_delay = self._nodata_wait_msecs / 1000
+        ep = select.epoll()
+        ep.register(self._socket, select.EPOLLIN | select.EPOLLOUT)
+        fatal = False
+
         # 1) check if socket ready for read/write
         # 2) sleep if no read/write was available
         # 3) perform read if applicable
         # 4) perform write if applicable
-        while self._started:
+        while self._started or fatal:
 
             # step 1
             can_read = False
             can_write = False
             try:
-                result = select.select([self._socket], [self._socket], [], 0)
-                can_read = len(result[0]) == 1
-                can_write = len(result[1]) == 1
+                result = ep.poll(0.0)
+                can_read = (result[0][1] & select.EPOLLIN) == select.EPOLLIN
+                can_write = (result[0][1] & select.EPOLLOUT) == select.EPOLLOUT
             except Exception as e:
-                logger.error("OS select() error - {}".format(e))
-            
+                logger.error("EPOLL error in pump worker thread - {}".format(e))
+                if self.on_fatal_error:
+                    self.ioloop.add_callback(partial(
+                        self.on_fatal_error,
+                        error=e))
+                fatal = True
+                continue
+
             # step 2
             if not can_read and not can_write:
-                sleep(delay)
+                sleep(nodata_delay)
                 continue
+
+            error = False
 
             # step 3
             if can_read:
@@ -125,16 +138,27 @@ class RealTimeSocketPump:
                             self.on_data_ready,
                             data=data))
                 except Exception as e:
-                    logger.error("Socket read error - {}".format(e))
+                    logger.error("Pump socket read error - {}".format(e))
+                    fatal = True
 
             # step 4
             if can_write and self._send_buffer.length >= self._write_mtu:
                 try:
-                    self._socket.sendall(
+                    self._socket.send(
                         self._send_buffer.get(self._write_mtu))
                 except Exception as e:
-                    logger.error("Socket write error - {}".format(e))
-                    sleep(0.01) # CPU busy safety
+                    logger.error("Pump socket write error - {}".format(e))
+                    fatal = True
+            
+            if error:
+                sleep(0.01) # CPU busy safety
 
-        logger.debug(
-            "BiDirectionalSocketPump worker thread has gracefully stopped.")
+        #ep.unregister(self._socket)
+        ep.close()
+
+        if fatal:
+            logger.debug(
+                "Socket pump worker thread has stopped due to a fatal error.")
+        else:
+            logger.debug(
+                "Socket pump worker thread has gracefully stopped.")

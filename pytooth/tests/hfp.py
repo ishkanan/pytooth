@@ -4,12 +4,11 @@ import logging
 
 from tornado.ioloop import IOLoop
 
-import pytooth
-from pytooth.hfp import HandsFreeProfile
 from pytooth.adapters import OpenPairableAdapter
-from pytooth.hfp.pcm import PCMDecoder
+from pytooth.hfp import HandsFreeProfile
 from pytooth.hfp.sinks import PortAudioSink
 from pytooth.hfp.sources import PortAudioSource
+from pytooth.other.pumps import RealTimeSocketPump
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +19,12 @@ class TestApplication:
     """
 
     def __init__(self, bus, config):
+        # setup
         self.phone = None
-        self.sink = None
-        self.source = None
-        self._socket = None
+        self._sink = None
+        self._source = None
+        self._socket_pump = RealTimeSocketPump()
         self._oncall = False
-        self._mtu = None
 
         # profile setup
         hfp = HandsFreeProfile(
@@ -67,14 +66,12 @@ class TestApplication:
         """Fired when the remote device establishes an audio connection with
         us.
         """
-        
-        # store for later use
-        self._socket = socket
-        self._mtu = mtu
 
         # start or stop pumping audio
         if connected:
-            self._start_audio()
+            self._start_audio(
+                socket=socket,
+                mtu=mtu)
         else:
             self._stop_audio()
 
@@ -128,36 +125,44 @@ class TestApplication:
         logger.info("Received phone event: name=\"{}\", kwargs={}".format(
             name, kwargs))
 
-    def _start_audio(self):
+    def _start_audio(self, socket, mtu):
         # audio can start via 2 use cases:
         # - phone makes call
         # - phone receives call
 
-        self.sink = PortAudioSink(
-            decoder=PCMDecoder(),
-            socket=self._socket,
-            read_mtu=self._mtu,
+        self._sink = PortAudioSink(
+            socket_pump=self._socket_pump,
             card_name="pulse",
-            buffer_secs=1)
-        self.sink.start()
-        logger.info("Built new PortAudioSink with PCMDecoder.")
+            buffer_msecs=500)
+        self._sink.start()
+        logger.info("Built new PortAudioSink.")
 
-        self.source = PortAudioSource(
-            socket=self._socket,
-            write_mtu=self._mtu,
-            card_name="pulse")
-        self.source.start()
-        logger.info("Built new PortAudioSource with PCMEncoder.")
+        # self._source = PortAudioSource(
+        #     socket_pump=self._socket_pump,
+        #     mtu=mtu,
+        #     card_name="pulse")
+        # self._source.start()
+        # logger.info("Built new PortAudioSource.")
+
+        self._socket_pump.start(
+            socket=socket,
+            read_mtu=mtu,
+            write_mtu=mtu,
+            nodata_wait_msecs=100)
+        logger.info("Started the socket pump.")
 
     def _stop_audio(self):
         # no more active calls, obviously
 
-        if self.sink:
-            self.sink.stop()
-            self.sink = None
+        if self._sink:
+            self._sink.stop()
+            self._sink = None
             logger.info("Destroyed PortAudioSink.")
 
-        if self.source:
-            self.source.stop()
-            self.source = None
+        if self._source:
+            self._source.stop()
+            self._source = None
             logger.info("Destroyed PortAudioSource.")
+
+        self._socket_pump.stop()
+        logger.info("Stopped the socket pump.")
