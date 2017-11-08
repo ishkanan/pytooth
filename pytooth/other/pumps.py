@@ -102,7 +102,7 @@ class RealTimeSocketPump:
         # 2) sleep if no read/write was available
         # 3) perform read if applicable
         # 4) perform write if applicable
-        while self._started or fatal:
+        while self._started and not fatal:
 
             # step 1
             can_read = False
@@ -124,8 +124,6 @@ class RealTimeSocketPump:
             if not can_read and not can_write:
                 sleep(nodata_delay)
                 continue
-
-            error = False
 
             # step 3
             if can_read:
@@ -150,9 +148,6 @@ class RealTimeSocketPump:
                     logger.error("Pump socket write error - {}".format(e))
                     fatal = True
             
-            if error:
-                sleep(0.01) # CPU busy safety
-
         #ep.unregister(self._socket)
         ep.close()
 
