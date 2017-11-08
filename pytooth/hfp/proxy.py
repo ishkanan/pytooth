@@ -5,6 +5,7 @@ from tornado.gen import coroutine
 
 from pytooth.errors import InvalidOperationError
 from pytooth.hfp.constants import HF_BRSF_FEATURES
+from pytooth.hfp.helpers import CallStateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ class RemotePhone:
         self._ag_features = None
         self._ag_multicall = None
         self._codec = None
+        self._csm = None
+        self._handshake_completed = False
         self.io_loop = io_loop
         self._started = False
 
@@ -40,8 +43,16 @@ class RemotePhone:
         if self._started:
             return
 
+        self._csm = CallStateMachine()
         self.io_loop.add_callback(self._do_handshake)
         self._started = True
+
+    @property
+    def call_state(self):
+        """Current state of calls present on the AG telephony device."""
+        if not self._started:
+            return None
+        return self._csm.state
 
     @property
     def codec(self):
@@ -57,6 +68,73 @@ class RemotePhone:
     def multicall(self):
         """Multi-call handling capabilities of the AG."""
         return self._ag_multicall
+
+    def answer(self):
+        """Request to answer an incoming call. This function raises an
+        InvalidOperationError if not started or handshake is pending. Otherwise
+        returns no value. State changes resulting from this function are
+        available via the on_event() event.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+        if not self._handshake_completed:
+            raise InvalidOperationError("Handshake not completed.")
+
+        self._connection.send_message(message="ATA")
+
+    def dial(self, number):
+        """Initiates a call to the specified number. This function raises an
+        InvalidOperationError if not started or handshake is pending. Otherwise
+        returns no value. State changes resulting from this function are
+        available via the on_event() event.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+        if not self._handshake_completed:
+            raise InvalidOperationError("Handshake not completed.")
+
+        self._connection.send_message(
+            message="ATD{}".format(number))
+
+    def hangup(self):
+        """Request to hangup a connected call. This function raises an
+        InvalidOperationError if not started or handshake is pending. Otherwise
+        returns no value. State changes resulting from this function are
+        available via the on_event() event.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+        if not self._handshake_completed:
+            raise InvalidOperationError("Handshake not completed.")
+
+        self._connection.send_message(message="AT+CHUP")
+
+    def reject(self):
+        """Request to reject an incoming call. This function raises an
+        InvalidOperationError if not started or handshake is pending. Otherwise
+        returns no value. State changes resulting from this function are
+        available via the on_event() event.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+        if not self._handshake_completed:
+            raise InvalidOperationError("Handshake not completed.")
+
+        self._connection.send_message(message="AT+CHUP")
+
+    def send_dtmf(self, dtmf):
+        """Request to send DTMF to the network. This function raises an
+        InvalidOperationError if not started or handshake is pending. Otherwise
+        returns no value. State changes resulting from this function are
+        available via the on_event() event.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+        if not self._handshake_completed:
+            raise InvalidOperationError("Handshake not completed.")
+
+        self._connection.send_message(
+            message="AT+VTS={}".format(dtmf))
 
     def _connection_close(self):
         """Called when serial connection is closed.
@@ -87,19 +165,14 @@ class RemotePhone:
             if "signal" in data:
                 self._raise_event(name="signal", level=int(data["signal"]))
 
-        # callstatus (subset of)
-        if code == "CIEV" and "call" in data:
-            self._raise_event(
-                name="callstatus",
-                status="oncall" if data["call"] == 1 else "idle")
-
-        # CLID
-        if code == "CLIP":
-            self._raise_event(name="clid", clid=data)
-
         # carrier
         if code == "COPS":
             self._raise_event(name="carrier", carrier=data["name"])
+
+        # call state machine
+        transitioned = self._csm.transition(name=code, data=data)
+        if transitioned:
+            self._raise_event(name="calls", state=self._csm.state)
 
     @coroutine
     def _do_handshake(self):
@@ -134,6 +207,7 @@ class RemotePhone:
             if self._ag_features["3WAY"]:
                 self._ag_multicall = yield self._send_and_wait(
                     "AT+CHLD=?", "CHLD")
+                # call waiting alerts
                 yield self._send_and_wait("AT+CCWA=1", "OK")
                 
             # extended error handling
@@ -153,6 +227,7 @@ class RemotePhone:
             return
 
         # handshake is complete
+        self._handshake_completed = True
         logger.debug("HFP handshake is complete.")
         if self.on_connected_changed:
             self.on_connected_changed(connected=True)
