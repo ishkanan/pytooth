@@ -5,15 +5,16 @@ import logging
 from tornado.ioloop import IOLoop
 
 import pytooth
-from pytooth.pbap import PhoneBookAccessProfile
 from pytooth.adapters import OpenPairableAdapter
+from pytooth.pbap import PhoneBookAccessProfile
 
 logger = logging.getLogger(__name__)
 
 
 class TestApplication:
-    """Test application for the PBAP profile. The logic of this code is suitable
-    for use in a real-world application.
+    """Test application for the PBAP profile. Most of the logic of this code is
+    suitable for use in a real-world application. The timer calling the
+    `connect` method would most likely be substituted with a user action.
     """
 
     def __init__(self, bus, config):
@@ -27,6 +28,8 @@ class TestApplication:
         pbap.on_adapter_connected_changed = self._adapter_connected_changed
         pbap.on_device_connected_changed = self._device_connected_changed
         pbap.on_profile_status_changed = self._profile_status_changed
+        pbap.on_client_transfer_complete = self._client_transfer_complete
+        pbap.on_client_transfer_error = self._client_transfer_error
         self.pbap = pbap
 
     def start(self):
@@ -64,3 +67,16 @@ class TestApplication:
         """
         logger.info("PBAP profile is {}avaiable.".format(
             "" if avaiable else "not "))
+
+    def _client_transfer_complete(self, client, data):
+        """Fired when a transfer has completed successfully.
+        """
+        logger.debug("Transfer from '{}' has completed - data={}".format(
+            client.destination, data))
+
+    def _client_transfer_error(self, client):
+        """Fired when a transfer fails due to an error. Bluez5 does not provide
+        error details.
+        """
+        logger.debug("Transfer from '{}' encountered an error.".format(
+            client.destination))

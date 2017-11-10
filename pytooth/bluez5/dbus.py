@@ -228,6 +228,7 @@ class PhonebookClient:
         self._client = Bluez5Utils.get_phonebook_client(
             bus=system_bus,
             session_path=session.path)
+        self._destination = session.get("Destination")
         self.io_loop = io_loop
         self._session = session
         self._system_bus = system_bus
@@ -237,6 +238,10 @@ class PhonebookClient:
         # public events
         self.on_transfer_complete = None
         self.on_transfer_error = None
+
+    @property
+    def destination(self):
+        return self._destination
 
     @property
     def session(self):
