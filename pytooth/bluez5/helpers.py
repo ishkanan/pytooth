@@ -82,8 +82,12 @@ class Bluez5Utils:
     MEDIA_ENDPOINT_INTERFACE = "org.bluez.MediaEndpoint1"
     MEDIA_PLAYER_INTERFACE = "org.bluez.MediaPlayer1"
     MEDIA_TRANSPORT_INTERFACE = "org.bluez.MediaTransport1"
+    OBEX_CLIENT_INTERFACE = "org.bluez.obex.Client1"
+    OBEX_SESSION_INTERFACE = "org.bluez.obex.Session1"
+    PHONEBOOK_INTERFACE = "org.bluez.obex.PhonebookAccess1"
     PROFILE_INTERFACE = "org.bluez.Profile1"
     PROFILE_MANAGER_INTERFACE = "org.bluez.ProfileManager1"
+    TRANSFER_INTERFACE = "org.bluez.obex.Transfer1"
 
     OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager"
     PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
@@ -167,8 +171,36 @@ class Bluez5Utils:
             interface=Bluez5Utils.MEDIA_TRANSPORT_INTERFACE)
 
     @staticmethod
+    def get_obex_client(bus):
+        return DBusProxy(
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/org/bluez/obex"),
+            path="/org/bluez/obex",
+            interface=Bluez5Utils.OBEX_CLIENT_INTERFACE)
+    
+    @staticmethod
+    def get_obex_session(bus, session_path):
+        return DBusProxy(
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, session_path),
+            path=session_path,
+            interface=Bluez5Utils.OBEX_SESSION_INTERFACE)
+
+    @staticmethod
+    def get_phonebook_client(bus, session_path):
+        return DBusProxy(
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, session_path),
+            path=session_path,
+            interface=Bluez5Utils.PHONEBOOK_INTERFACE)
+
+    @staticmethod
     def get_profilemanager(bus):
         return DBusProxy(
             proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/org/bluez"),
             path="/org/bluez",
             interface=Bluez5Utils.PROFILE_MANAGER_INTERFACE)
+
+    @staticmethod
+    def get_transfer(bus, transfer_path):
+        return DBusProxy(
+            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, transfer_path),
+            path=transfer_path,
+            interface=Bluez5Utils.TRANSFER_INTERFACE)

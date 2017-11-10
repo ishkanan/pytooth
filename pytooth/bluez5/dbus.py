@@ -188,6 +188,107 @@ class MediaTransport:
     def __unicode__(self):
         return "<MediaTransport: "+self._proxy.path+">"
 
+class ObexSessionFactory:
+    """Uses an Obex.Client1 bluez5 object to create and destroy Obex sessions.
+    This does not do any session tracking; it is up to the caller to invoke
+    destroy_session for every active session.
+    """
+
+    def __init__(self, system_bus):
+        self._obex_client_proxy = Bluez5Utils.get_obex_client(
+            bus=system_bus)
+        self._system_bus = system_bus
+
+    def create_session(destination, target, **kwargs):
+        """Creates and returns a new Obex client session, encapsulated in a
+        pytooth.bluez5.helpers.DBusProxy object.
+        """
+        args = {"Target": target}
+        args.update(kwargs)
+        session_path = self._obex_client_proxy.CreateSession(
+            destination,
+            args)
+        return Bluez5Utils.get_obex_session(
+            bus=self._system_bus,
+            session_path=session_path)
+
+    def destroy_session(self, session):
+        """Closes an existing Obex session.
+        """
+        self._obex_client_proxy.remove_session(session.path)
+
+class PhonebookClient:
+    """Wrapper that provides access to PBAP client methods. This class only
+    permits one transfer of phonebook data at a time. As per PBAP spec, this
+    also provides access to call history datasets.
+
+    https://github.com/r10r/bluez/blob/master/doc/obex-api.txt
+    """
+    def __init__(self, system_bus, session, io_loop):
+        self._client = Bluez5Utils.get_phonebook_client(
+            bus=system_bus,
+            session_path=session.path)
+        self.io_loop = io_loop
+        self._session = session
+        self._system_bus = system_bus
+        self._transfer = None
+        self._transfer_file = None
+
+        # public events
+        self.on_transfer_complete = None
+        self.on_transfer_error = None
+
+    @property
+    def session(self):
+        return self._session
+
+    def _transfer_check(self):
+        """IO-loop callback for checking the status of an existing transfer.
+        """
+        try:
+            pass
+        except Exception as e:
+            raise
+        else:
+            pass
+        finally:
+            pass
+    def select(self, location, name):
+        """Selects a phonebook for further operations. Location can be ['int',
+        'sim1', 'sim2'...] and name can be ['pb', 'ich', 'och', 'mch', 'cch'].
+        This does nothing if a transfer is in progress.
+        """
+        if self._transfer is not None:
+            return
+
+        self._client.proxy.Select(location, name)
+
+    def get_all(self, format=None, order=None, offset=None, \
+        maxcount=None, fields=None):
+        """Fetches the entire phonebook. Actual data is returned via the
+        on_transfer_complete event, if the transfer is successful. This does
+        nothing if a transfer is in progress.
+        """
+        if self._transfer is not None:
+            return
+
+        # all filters are optional
+        filters = {}
+        lcls = locals()
+        for f in ["format", "order", "offset", "maxcount", "fields"]:
+            if lcls[f] is not None:
+                filters[f] = lcls[f]
+
+        # start the transfer
+        tx_path, tx_props = self._client.PullAll("", filters)
+        self._transfer = Bluez5Utils.get_transfer(
+            bus=self._system_bus,
+            transfer_path=tx_path)
+        self._transfer_file = tx_props["Filename"]
+        self.io_loop.call_later(
+            delay=1,
+            callback=self._transfer_check)
+
 class Profile(dbus.service.Object):
     """Encapsulates a Profile bluez5 object.
     """
