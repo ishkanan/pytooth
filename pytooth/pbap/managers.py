@@ -121,16 +121,18 @@ class ProfileManager:
 class ClientManager:
     """Manages the creation and destruction of client connections to PBAP
     servers, and the required underlying Obex sessions. Note this will only
-    allow one active session/client pair per remote PBAP server.
+    allow one client per session/client pair per remote PBAP server.
     """
 
-    def __init__(self, system_bus):
+    def __init__(self, system_bus, io_loop):
         # key: destination address
         # value: PhonebookClient instance
         self._clients = None
         self._factory = ObexSessionFactory(
             system_bus=system_bus)
+        self.io_loop = io_loop
         self._started = False
+        self._system_bus = system_bus
 
     def start(self):
         """Starts the manager. If already started, this does nothing.
@@ -147,16 +149,62 @@ class ClientManager:
         if not self._started:
             return
 
-        # close any remaining sessions
-        for dest, client in self._clients.items():
+        # close any open sessions
+        for dest, _ in self._clients.items():
             try:
-                client.proxy.
-            try:
-                self._unregister()
-            except Exception as e:
-                logger.error("Error closing Obex session to {}.".format())
+                self.disconnect(destination=dest)
+            except ConnectionError:
+                pass
         self._clients = None
         self._started = False
 
     def connect(self, destination):
-        pass
+        """Establishes a connection to a remote PBAP server. If a connection
+        to the specified server is already being tracked, this returns the
+        client for that connection. If not started, this does nothing.
+        """
+        if not self._started:
+            return
+        if destination in self._clients:
+            return self._clients[destination]
+
+        session = self._factory.create_session(
+            destination=destination,
+            target="pbap")
+        try:
+            self._clients[destination] = PhonebookClient(
+                system_bus=self._system_bus,
+                session=session,
+                io_loop=self.io_loop)
+            return self._clients[destination]
+        except Exception:
+            logger.exception("Error creating Obex session to '{}'.".format(
+                destination))
+            try:
+                self._factory.destroy_session(session=session)
+            except Exception:
+                logger.exception("Error disconnecting Obex session to '{}'."
+                    "".format(destination))
+            raise ConnectionError("Error connecting to '{}'.".format(
+                destination))
+
+    def disconnect(self, destination):
+        """Closes the connection to a remote PBAP server. If a connection does
+        not exist, this does nothing. If not started, this does nothing.
+        """
+        if not self._started:
+            return
+        if destination not in self._clients:
+            return
+
+        try:
+            self._clients[destination].abort()
+            self._factory.destroy_session(
+                session=self._clients[destination].session)
+        except Exception:
+            logger.exception("Error disconnecting Obex session to '{}'.".format(
+                destination))
+            raise ConnectionError("Error disconnecting from '{}'.".format(
+                destination))
+        finally:
+            self._clients.pop(destination)

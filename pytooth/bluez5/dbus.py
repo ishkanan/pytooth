@@ -256,7 +256,7 @@ class PhonebookClient:
 
         # still going?
         if status in ["queued", "active"]:
-            self.io_loop.call_later(
+            self._transfer_handle = self.io_loop.call_later(
                 delay=1,
                 callback=self._transfer_check)
             return
@@ -265,6 +265,7 @@ class PhonebookClient:
         self._transfer = None
         fname = self._transfer_file
         self._transfer_file = None
+        self._transfer_handle = None
 
         # Bluez doesn't elaborate on the error :(
         if status == "error":
@@ -297,6 +298,20 @@ class PhonebookClient:
                         client=self,
                         data=data)
 
+            # delete the temporary file
+            try:
+                os.delete(fname)
+                logger.debug("Deleted destination file '{}' for transfer over "
+                    "Obex session '{}'.".format(
+                        fname,
+                        self._session.path))
+            except Exception as e:
+                logger.warning("Error deleting destination file '{}' for "
+                    "transfer over Obex session '{}' - {}".format(
+                        fname,
+                        self._session.path,
+                        e))
+
     def select(self, location, name):
         """Selects a phonebook for further operations. Location can be ['int',
         'sim1', 'sim2'...] and name can be ['pb', 'ich', 'och', 'mch', 'cch'].
@@ -307,11 +322,11 @@ class PhonebookClient:
 
         self._client.proxy.Select(location, name)
 
-    def get_all(self, format=None, order=None, offset=None, \
-        maxcount=None, fields=None):
-        """Fetches the entire phonebook. Actual data is returned via the
-        on_transfer_complete event, if the transfer is successful. This does
-        nothing if a transfer is in progress.
+    def get_all(self, format=None, order=None, offset=None, maxcount=None, \
+        fields=None):
+        """Fetches the entire selected phonebook. Actual data is returned via
+        the `on_transfer_complete` event, if the transfer is successful. This
+        does nothing if a transfer is in progress.
         """
         if self._transfer is not None:
             return
@@ -324,14 +339,24 @@ class PhonebookClient:
                 filters[f] = lcls[f]
 
         # start the transfer
-        tx_path, tx_props = self._client.PullAll("", filters)
+        tx_path, tx_props = self._client.proxy.PullAll("", filters)
         self._transfer = Bluez5Utils.get_transfer(
             bus=self._system_bus,
             transfer_path=tx_path)
         self._transfer_file = tx_props["Filename"]
-        self.io_loop.call_later(
+        self._transfer_handle = self.io_loop.call_later(
             delay=1,
             callback=self._transfer_check)
+
+    def abort(self):
+        """Abort the active transfer, if any. The underlying Obex session is
+        left as-is. If there is no active transfer, this does nothing.
+        """
+        if self._transfer is not None:
+            self.io_loop.remove_timeout(self._transfer_handle)
+            self._transfer = None
+            self._transfer_file = None
+            self._transfer_handle = None
 
 class Profile(dbus.service.Object):
     """Encapsulates a Profile bluez5 object.
