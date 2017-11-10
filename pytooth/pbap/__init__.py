@@ -2,7 +2,8 @@
 import logging
 
 from pytooth.bluez5.helpers import Bluez5Utils
-from pytooth.pbap.managers import ProfileManager
+from pytooth.errors import InvalidOperationError
+from pytooth.pbap.managers import ClientManager, ProfileManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,16 @@ class PhoneBookAccessProfile:
         pmgr.on_unexpected_stop = self._profile_unexpected_stop
         self._profilemgr = pmgr
 
+        # session / transfer plumber
+        cmgr = ClientManager(
+            system_bus=self._system_bus,
+            io_loop=io_loop)
+        self._clientmgr = cmgr
+
         # public events
         self.on_adapter_connected_changed = None
+        self.on_client_transfer_complete = None
+        self.on_client_transfer_error = None
         self.on_device_connected_changed = None
         self.on_profile_status_changed = None
 
@@ -48,6 +57,7 @@ class PhoneBookAccessProfile:
 
         self._adapter.start()
         self._profilemgr.start()
+        self._clientmgr.start()
         self._started = True
 
     def stop(self):
@@ -58,6 +68,7 @@ class PhoneBookAccessProfile:
 
         self._adapter.stop()
         self._profilemgr.stop()
+        self._clientmgr.stop()
         self._started = False
 
     @property
@@ -66,6 +77,36 @@ class PhoneBookAccessProfile:
         by this profile.
         """
         return self._adapter.connected
+
+    def connect(self, destination):
+        """Connects to a paired device. If not started, this raises an
+        `InvalidOperationError` error. If connection failed, this raises a
+        `ConnectionError` error.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+
+        client = self._clientmgr.connect(
+            destination=destination)
+        client.on_transfer_complete = self._client_transfer_complete
+        client.on_transfer_error = self._client_transfer_error
+        return client
+
+    def disconnect(self, destination):
+        """Disconnects from a paired device. If not started, this raises an
+        `InvalidOperationError` error. If an error occurred when disconnecting,
+        this raises a `ConnectionError` error.
+        """
+        if not self._started:
+            raise InvalidOperationError("Not started.")
+
+        client = self._clientmgr.get_client(
+            destination=destination)
+        if client is not None:
+            client.on_transfer_complete = None
+            client.on_transfer_error = None
+        self._clientmgr.disconnect(
+            destination=destination)
 
     def set_discoverable(self, enabled, timeout=None):
         """Set discoverable status.
@@ -122,3 +163,19 @@ class PhoneBookAccessProfile:
 
         if self.on_profile_status_changed:
             self.on_profile_status_changed(available=False)
+
+    def _client_transfer_complete(self, client, data):
+        """Fired when a transfer has completed successfully.
+        """
+        if self.on_transfer_complete:
+            self.on_transfer_complete(
+                client=client,
+                data=data)
+
+    def _client_transfer_error(self, client):
+        """Fired when a transfer fails due to an error. Bluez5 does not provide
+        error details.
+        """
+        if self.on_transfer_error:
+            self.on_transfer_error(
+                client=client)

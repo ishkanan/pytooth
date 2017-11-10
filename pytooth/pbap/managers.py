@@ -8,6 +8,7 @@ from tornado.ioloop import IOLoop
 
 from pytooth.bluez5.dbus import ObexSessionFactory, PhonebookClient, Profile
 from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.errors import InvalidOperationError
 from pytooth.pbap.constants import PBAP_PROFILE_UUID, \
                                     PBAP_DBUS_PROFILE_ENDPOINT
 
@@ -161,10 +162,12 @@ class ClientManager:
     def connect(self, destination):
         """Establishes a connection to a remote PBAP server. If a connection
         to the specified server is already being tracked, this returns the
-        client for that connection. If not started, this does nothing.
+        client for that connection. If not started, this raises an
+        `InvalidOperationError` error. If connection failed, this raises a
+        `ConnectionError` error.
         """
         if not self._started:
-            return
+            raise InvalidOperationError("Not started.")
         if destination in self._clients:
             return self._clients[destination]
 
@@ -190,10 +193,12 @@ class ClientManager:
 
     def disconnect(self, destination):
         """Closes the connection to a remote PBAP server. If a connection does
-        not exist, this does nothing. If not started, this does nothing.
+        not exist, this does nothing. If not started, this raises an
+        `InvalidOperationError` error. If an error occurred when disconnecting,
+        this raises a `ConnectionError` error.
         """
         if not self._started:
-            return
+            raise InvalidOperationError("Not started.")
         if destination not in self._clients:
             return
 
@@ -208,3 +213,10 @@ class ClientManager:
                 destination))
         finally:
             self._clients.pop(destination)
+
+    def get_client(self, destination):
+        """Returns the client, if any, associated with the connection to
+        device specified by `destination`. This returns None if no connection
+        is present.
+        """
+        return self._clients.get(destination)
