@@ -246,13 +246,57 @@ class PhonebookClient:
         """IO-loop callback for checking the status of an existing transfer.
         """
         try:
-            pass
-        except Exception as e:
-            raise
-        else:
-            pass
-        finally:
-            pass
+            status = self._transfer.get("Status")
+        except Exception:
+            logger.exception("Error checking transfer status over Obex session "
+                "'{}'.".format(self._session.path))
+            self._transfer = None
+            self._transfer_file = None
+            return
+
+        # still going?
+        if status in ["queued", "active"]:
+            self.io_loop.call_later(
+                delay=1,
+                callback=self._transfer_check)
+            return
+
+        # store and cleanup before anything can blow up
+        self._transfer = None
+        fname = self._transfer_file
+        self._transfer_file = None
+
+        # Bluez doesn't elaborate on the error :(
+        if status == "error":
+            logger.info("Transfer over Obex session '{}' failed.".format(
+                self._session.path))
+            if self.on_transfer_error:
+                self.on_transfer_error(
+                    client=self)
+
+        # Bluez writes the data to a temp file so we need
+        # to read that file in its entirety
+        # NOTE: parsing is the initiators responsibility
+        if status == "complete":
+            logger.info("Transfer over Obex session '{}' completed.".format(
+                self._session.path))
+            data = None
+            try:
+                with open(fname, 'r') as f:
+                    data = f.read()
+            except Exception:
+                logger.exception("Error reading transferred data from "
+                    "temporary file '{}' over Obex session '{}'.".format(
+                        fname, self._session.path))
+                if self.on_transfer_error:
+                    self.on_transfer_error(
+                        client=self)
+            else:
+                if self.on_transfer_complete:
+                    self.on_transfer_complete(
+                        client=self,
+                        data=data)
+
     def select(self, location, name):
         """Selects a phonebook for further operations. Location can be ['int',
         'sim1', 'sim2'...] and name can be ['pb', 'ich', 'och', 'mch', 'cch'].
