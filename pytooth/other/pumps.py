@@ -29,6 +29,10 @@ class RealTimeSocketPump:
         self.on_data_ready = None
         self.on_fatal_error = None
 
+    @property
+    def started(self):
+        return self._started
+        
     def start(self, socket, read_mtu, write_mtu, nodata_wait_msecs):
         """Starts the pump. If already started, this does nothing.
         """

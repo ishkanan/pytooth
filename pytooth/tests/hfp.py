@@ -164,5 +164,6 @@ class TestApplication:
             self._source = None
             logger.info("Destroyed PortAudioSource.")
 
-        self._socket_pump.stop()
-        logger.info("Stopped the socket pump.")
+        if self._socket_pump.started:
+            self._socket_pump.stop()
+            logger.info("Stopped the socket pump.")
