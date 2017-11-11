@@ -124,7 +124,7 @@ $ python setup.py install
 ```
 
 ### Install: Non-interactive
-Pytooth provides a bare-bones test script for each supported Bluetooth profile (A2DP and HFP), located in the **pytooth/tests** folder. The A2DP script provides full playback functionality, where the HFP script provides audio functionality but no remote control functions (e.g. answer, hang-up, etc).
+Pytooth provides a bare-bones test script for each supported Bluetooth profile, located in the **pytooth/tests** folder. The A2DP script provides full playback functionality. The HFP script provides audio functionality but no remote control functions (e.g. answer, hang-up, etc). The PBAP script downloads the internal phonebook for example purposes, so it's not really suitable for this use case.
 
 First, install the library with:
 
@@ -145,7 +145,7 @@ where ```<config file>``` is a copy of (or the actual file) **pytooth/tests/test
 **Key** | **Value**
 --- | ---
 preferredaddress | May contain the MAC address of a specific Bluetooth adapter (if more than one is available), or blank to use the first available one (non-deterministic)
-profiles | A list of profiles to launch, where valid items are "a2dp" and "hfp"
+profiles | A list of profiles to launch, where valid items are "a2dp", "hfp" and "pbap"
 retryinterval | Time, in seconds, that the library will search for a suitable Bluetooth adapter to use; can usually be left at the default value (15)
 
 ### Install: Library development
