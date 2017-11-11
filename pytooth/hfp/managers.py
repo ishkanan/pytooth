@@ -90,6 +90,7 @@ class ProfileManager:
         try:
             self._profilemgr_proxy.proxy.UnregisterProfile(
                 HFP_DBUS_PROFILE_ENDPOINT)
+            logger.debug("Unregistered HFP profile.")
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
@@ -229,6 +230,8 @@ class MediaManager:
             if self._connections[adapter]["status"] == "listening":
                 self.io_loop.remove_handler(sock.fileno())
             sock.close()
+            logger.debug("Successfully closed listening SCO socket on adapter "
+                "{}".format(adapter))
         except KeyError:
             logger.warning("Ignored SCO close attempt for adapter {} as it is "
                 "not being tracked.".format(adapter))

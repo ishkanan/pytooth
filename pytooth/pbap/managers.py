@@ -85,6 +85,7 @@ class ProfileManager:
         try:
             self._profilemgr_proxy.proxy.UnregisterProfile(
                 PBAP_DBUS_PROFILE_ENDPOINT)
+            logger.debug("Unregistered PBAP profile.")
         except Exception:
             logger.exception("Error unregistering profile endpoint.")
 
@@ -150,6 +151,8 @@ class ClientManager:
             return
 
         # close any open sessions
+        logger.debug("Disconnecting {} forgotten Obex session(s)...".format(
+            len(self._clients)))
         for dest, _ in dict(self._clients).items():
             try:
                 self.disconnect(destination=dest)
@@ -177,6 +180,8 @@ class ClientManager:
             self._clients[destination] = PhonebookClient(
                 session_bus=self._session_bus,
                 session=session)
+            logger.debug("Obex session to '{}' has been established.".format(
+                destination))
             return self._clients[destination]
         except Exception:
             logger.exception("Error creating Obex session to '{}'.".format(
@@ -204,6 +209,8 @@ class ClientManager:
             self._clients[destination].abort()
             self._factory.destroy_session(
                 session=self._clients[destination].session)
+            logger.debug("Obex session to '{}' has been disconnected.".format(
+                destination))
         except Exception:
             logger.exception("Error disconnecting Obex session to '{}'.".format(
                 destination))
