@@ -1,5 +1,5 @@
 # Overview
-An easy-to-use Bluetooth Python 3 library, built on the asynchronous [Tornado](http://www.tornadoweb.org/) framework, for interacting with Bluez5 over the DBus API. It currently supports the **A2DP** (music streaming) and **HFP** (hands-free phone) profiles.
+An easy-to-use Bluetooth Python 3 library, built on the asynchronous [Tornado](http://www.tornadoweb.org/) framework, for interacting with Bluez5 over the DBus API. It currently supports the **A2DP** (music streaming), **HFP** (hands-free phone) and **PBAP** (phonebook transfer) profiles.
 
 Bluez5 documentation available in the Bluez5 [source code repository](https://git.kernel.org/cgit/bluetooth/bluez.git/tree/doc).
 
