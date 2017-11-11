@@ -67,7 +67,7 @@ def main():
     gtkloop = GtkMainLoop(io_loop=IOLoop.instance())
     
     # create common objects
-    bus = pytooth.init()
+    system_bus, session_bus = pytooth.init()
     
     # load profile test apps
     apps = []
@@ -80,7 +80,8 @@ def main():
                 ["TestApplication"],
                 0)
             apps.append(_t.TestApplication(
-                bus=bus,
+                session_bus=session_bus,
+                system_bus=system_bus,
                 config=config))
         except Exception:
             logging.exception("Possible import error of '{}' profile.".format(

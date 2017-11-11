@@ -18,7 +18,7 @@ class TestApplication:
     for use in a real-world application.
     """
 
-    def __init__(self, bus, config):
+    def __init__(self, session_bus, system_bus, config):
         # setup
         self.phone = None
         self._sink = None
@@ -28,7 +28,7 @@ class TestApplication:
 
         # profile setup
         hfp = HandsFreeProfile(
-            system_bus=bus,
+            system_bus=system_bus,
             adapter_class=OpenPairableAdapter,
             preferred_address=config["preferredaddress"],
             retry_interval=config["retryinterval"],
@@ -137,12 +137,12 @@ class TestApplication:
         self._sink.start()
         logger.info("Built new PortAudioSink.")
 
-        # self._source = PortAudioSource(
-        #     socket_pump=self._socket_pump,
-        #     mtu=mtu,
-        #     card_name="pulse")
-        # self._source.start()
-        # logger.info("Built new PortAudioSource.")
+        self._source = PortAudioSource(
+            socket_pump=self._socket_pump,
+            mtu=mtu,
+            card_name="pulse")
+        self._source.start()
+        logger.info("Built new PortAudioSource.")
 
         self._socket_pump.start(
             socket=socket,

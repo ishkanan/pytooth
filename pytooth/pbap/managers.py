@@ -125,15 +125,14 @@ class ClientManager:
     allow one client per session/client pair per remote PBAP server.
     """
 
-    def __init__(self, system_bus, io_loop):
+    def __init__(self, session_bus):
         # key: destination address
         # value: PhonebookClient instance
         self._clients = None
         self._factory = ObexSessionFactory(
-            system_bus=system_bus)
-        self.io_loop = io_loop
+            session_bus=session_bus)
         self._started = False
-        self._system_bus = system_bus
+        self._session_bus = session_bus
 
     def start(self):
         """Starts the manager. If already started, this does nothing.
@@ -151,7 +150,7 @@ class ClientManager:
             return
 
         # close any open sessions
-        for dest, _ in self._clients.items():
+        for dest, _ in dict(self._clients).items():
             try:
                 self.disconnect(destination=dest)
             except ConnectionError:
@@ -176,9 +175,8 @@ class ClientManager:
             target="pbap")
         try:
             self._clients[destination] = PhonebookClient(
-                system_bus=self._system_bus,
-                session=session,
-                io_loop=self.io_loop)
+                session_bus=self._session_bus,
+                session=session)
             return self._clients[destination]
         except Exception:
             logger.exception("Error creating Obex session to '{}'.".format(

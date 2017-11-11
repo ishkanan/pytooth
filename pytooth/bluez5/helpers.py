@@ -74,6 +74,7 @@ class Bluez5Utils:
     """
 
     SERVICE_NAME = "org.bluez"
+    OBEX_SERVICE_NAME = "org.bluez.obex"
     ADAPTER_INTERFACE = "org.bluez.Adapter1"
     AGENT_INTERFACE = "org.bluez.Agent1"
     AGENT_MANAGER_INTERFACE = "org.bluez.AgentManager1"
@@ -173,21 +174,21 @@ class Bluez5Utils:
     @staticmethod
     def get_obex_client(bus):
         return DBusProxy(
-            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, "/org/bluez/obex"),
+            proxy=bus.get_object(Bluez5Utils.OBEX_SERVICE_NAME, "/org/bluez/obex"),
             path="/org/bluez/obex",
             interface=Bluez5Utils.OBEX_CLIENT_INTERFACE)
     
     @staticmethod
     def get_obex_session(bus, session_path):
         return DBusProxy(
-            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, session_path),
+            proxy=bus.get_object(Bluez5Utils.OBEX_SERVICE_NAME, session_path),
             path=session_path,
             interface=Bluez5Utils.OBEX_SESSION_INTERFACE)
 
     @staticmethod
     def get_phonebook_client(bus, session_path):
         return DBusProxy(
-            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, session_path),
+            proxy=bus.get_object(Bluez5Utils.OBEX_SERVICE_NAME, session_path),
             path=session_path,
             interface=Bluez5Utils.PHONEBOOK_INTERFACE)
 
@@ -201,6 +202,6 @@ class Bluez5Utils:
     @staticmethod
     def get_transfer(bus, transfer_path):
         return DBusProxy(
-            proxy=bus.get_object(Bluez5Utils.SERVICE_NAME, transfer_path),
+            proxy=bus.get_object(Bluez5Utils.OBEX_SERVICE_NAME, transfer_path),
             path=transfer_path,
             interface=Bluez5Utils.TRANSFER_INTERFACE)

@@ -18,12 +18,12 @@ class TestApplication:
     for use in a real-world application.
     """
 
-    def __init__(self, bus, config):
+    def __init__(self, session_bus, system_bus, config):
         self.sink = None
 
         # profile setup
         a2dp = AdvancedAudioProfile(
-            system_bus=bus,
+            system_bus=system_bus,
             adapter_class=OpenPairableAdapter,
             preferred_address=config["preferredaddress"],
             retry_interval=config["retryinterval"],

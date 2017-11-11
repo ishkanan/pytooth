@@ -12,7 +12,9 @@ class PhoneBookAccessProfile:
     """Top-level class for PBAP control via Bluez5 stack.
     """
 
-    def __init__(self, system_bus, adapter_class, io_loop, *args, **kwargs):
+    def __init__(self, session_bus, system_bus, adapter_class, io_loop, \
+        *args, **kwargs):
+        self._session_bus = session_bus
         self._system_bus = system_bus
 
         # adapter
@@ -34,8 +36,7 @@ class PhoneBookAccessProfile:
 
         # session / transfer plumber
         cmgr = ClientManager(
-            system_bus=self._system_bus,
-            io_loop=io_loop)
+            session_bus=self._session_bus)
         self._clientmgr = cmgr
 
         # public events
@@ -167,8 +168,8 @@ class PhoneBookAccessProfile:
     def _client_transfer_complete(self, client, data):
         """Fired when a transfer has completed successfully.
         """
-        if self.on_transfer_complete:
-            self.on_transfer_complete(
+        if self.on_client_transfer_complete:
+            self.on_client_transfer_complete(
                 client=client,
                 data=data)
 
@@ -176,6 +177,6 @@ class PhoneBookAccessProfile:
         """Fired when a transfer fails due to an error. Bluez5 does not provide
         error details.
         """
-        if self.on_transfer_error:
-            self.on_transfer_error(
+        if self.on_client_transfer_error:
+            self.on_client_transfer_error(
                 client=client)

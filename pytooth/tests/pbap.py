@@ -17,10 +17,11 @@ class TestApplication:
     `connect` method would most likely be substituted with a user action.
     """
 
-    def __init__(self, bus, config):
+    def __init__(self, session_bus, system_bus, config):
         # profile setup
         pbap = PhoneBookAccessProfile(
-            system_bus=bus,
+            session_bus=session_bus,
+            system_bus=system_bus,
             adapter_class=OpenPairableAdapter,
             preferred_address=config["preferredaddress"],
             retry_interval=config["retryinterval"],
@@ -36,12 +37,36 @@ class TestApplication:
         # let's go
         self.pbap.start()
 
+        # this would probably be replaced with a user action
+        IOLoop.current().call_later(
+            delay=5,
+            callback=self._connect_and_transfer)
+
     def stop(self):
         # cleanup
         if self.pbap.adapter_connected:
             self.pbap.set_discoverable(enabled=False)
             self.pbap.set_pairable(enabled=False)
         self.pbap.stop()
+
+    def _connect_and_transfer(self):
+        """Dummy function to connect and kick off a transfer.
+        """
+        try:
+            client = self.pbap.connect(
+                destination="ac:37:43:79:11:29")
+        except Exception:
+            logger.exception("Death during connect.")
+            IOLoop.current().call_later(
+                delay=5,
+                callback=self._connect_and_transfer)
+            return
+
+        logger.debug("Selecting phonebook...")
+        client.select("int", "pb")
+        logger.debug("Selected phonebook.")
+        logger.debug("Downloading entries from phonebook...")
+        client.get_all()
 
     def _adapter_connected_changed(self, adapter, connected):
         logger.debug("Adapter {} is now {}.".format(
@@ -71,8 +96,9 @@ class TestApplication:
     def _client_transfer_complete(self, client, data):
         """Fired when a transfer has completed successfully.
         """
-        logger.debug("Transfer from '{}' has completed - data={}".format(
-            client.destination, data))
+        logger.debug("Transfer from '{}' has completed - # bytes={}".format(
+            client.destination, len(data)))
+        self.pbap.disconnect(destination=client.destination)
 
     def _client_transfer_error(self, client):
         """Fired when a transfer fails due to an error. Bluez5 does not provide
@@ -80,3 +106,4 @@ class TestApplication:
         """
         logger.debug("Transfer from '{}' encountered an error.".format(
             client.destination))
+        self.pbap.disconnect(destination=client.destination)

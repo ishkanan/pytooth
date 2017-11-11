@@ -6,7 +6,7 @@ import logging
 import os
 import socket
 
-from dbus import Array, Byte
+from dbus import Array, Byte, UInt16
 import dbus.service
 
 from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
@@ -194,28 +194,28 @@ class ObexSessionFactory:
     destroy_session for every active session.
     """
 
-    def __init__(self, system_bus):
+    def __init__(self, session_bus):
         self._obex_client_proxy = Bluez5Utils.get_obex_client(
-            bus=system_bus)
-        self._system_bus = system_bus
+            bus=session_bus)
+        self._session_bus = session_bus
 
-    def create_session(destination, target, **kwargs):
+    def create_session(self, destination, target):
         """Creates and returns a new Obex client session, encapsulated in a
         pytooth.bluez5.helpers.DBusProxy object.
         """
-        args = {"Target": target}
-        args.update(kwargs)
-        session_path = self._obex_client_proxy.CreateSession(
+        session_path = self._obex_client_proxy.proxy.CreateSession(
             destination,
-            args)
+            {
+                "Target": target
+            })
         return Bluez5Utils.get_obex_session(
-            bus=self._system_bus,
+            bus=self._session_bus,
             session_path=session_path)
 
     def destroy_session(self, session):
         """Closes an existing Obex session.
         """
-        self._obex_client_proxy.remove_session(session.path)
+        self._obex_client_proxy.proxy.RemoveSession(session.path)
 
 class PhonebookClient:
     """Wrapper that provides access to PBAP client methods. This class only
@@ -224,16 +224,23 @@ class PhonebookClient:
 
     https://github.com/r10r/bluez/blob/master/doc/obex-api.txt
     """
-    def __init__(self, system_bus, session, io_loop):
+    def __init__(self, session_bus, session):
         self._client = Bluez5Utils.get_phonebook_client(
-            bus=system_bus,
+            bus=session_bus,
             session_path=session.path)
         self._destination = session.get("Destination")
-        self.io_loop = io_loop
         self._session = session
-        self._system_bus = system_bus
+        self._session_bus = session_bus
         self._transfer = None
         self._transfer_file = None
+
+        # for some reason we can't access the properties via the DBusProxy
+        # object. quite strange...
+        session_bus.add_signal_receiver(
+            self._properties_changed,
+            dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
+            signal_name="PropertiesChanged",
+            path_keyword="path")
 
         # public events
         self.on_transfer_complete = None
@@ -247,53 +254,51 @@ class PhonebookClient:
     def session(self):
         return self._session
 
-    def _transfer_check(self):
-        """IO-loop callback for checking the status of an existing transfer.
+    def _properties_changed(self, interface, properties, invalidated, path):
+        """DBus callback that we use for checking the status of an existing
+        transfer.
         """
-        try:
-            status = self._transfer.get("Status")
-        except Exception:
-            logger.exception("Error checking transfer status over Obex session "
-                "'{}'.".format(self._session.path))
-            self._transfer = None
-            self._transfer_file = None
+        if self._transfer is None:
+            return
+        if self._transfer.path != path:
+            return
+        if "Status" not in properties:
             return
 
+        status = properties["Status"]
+        
         # still going?
         if status in ["queued", "active"]:
-            self._transfer_handle = self.io_loop.call_later(
-                delay=1,
-                callback=self._transfer_check)
             return
 
         # store and cleanup before anything can blow up
         self._transfer = None
         fname = self._transfer_file
         self._transfer_file = None
-        self._transfer_handle = None
 
         # Bluez doesn't elaborate on the error :(
         if status == "error":
-            logger.info("Transfer over Obex session '{}' failed.".format(
-                self._session.path))
+            logger.info("Obex session transfer from '{}' failed.".format(
+                self._destination))
             if self.on_transfer_error:
                 self.on_transfer_error(
                     client=self)
 
         # Bluez writes the data to a temp file so we need
-        # to read that file in its entirety
+        # to return all data in that file and delete it
         # NOTE: parsing is the initiators responsibility
         if status == "complete":
-            logger.info("Transfer over Obex session '{}' completed.".format(
-                self._session.path))
+            logger.info("Obex session transfer from '{}' completed.".format(
+                self._destination))
             data = None
             try:
                 with open(fname, 'r') as f:
                     data = f.read()
             except Exception:
-                logger.exception("Error reading transferred data from "
-                    "temporary file '{}' over Obex session '{}'.".format(
-                        fname, self._session.path))
+                logger.exception("Error reading transferred data in "
+                    "temporary file '{}' from '{}'.".format(
+                        fname,
+                        self._destination))
                 if self.on_transfer_error:
                     self.on_transfer_error(
                         client=self)
@@ -305,16 +310,16 @@ class PhonebookClient:
 
             # delete the temporary file
             try:
-                os.delete(fname)
-                logger.debug("Deleted destination file '{}' for transfer over "
-                    "Obex session '{}'.".format(
+                os.remove(fname)
+                logger.debug("Temporary destination file '{}' for transfer from"
+                    " '{}' has been deleted.".format(
                         fname,
-                        self._session.path))
+                        self._destination))
             except Exception as e:
-                logger.warning("Error deleting destination file '{}' for "
-                    "transfer over Obex session '{}' - {}".format(
+                logger.warning("Error deleting temporary destination file '{}' "
+                    "for transfer from '{}' - {}".format(
                         fname,
-                        self._session.path,
+                        self._destination,
                         e))
 
     def select(self, location, name):
@@ -327,7 +332,7 @@ class PhonebookClient:
 
         self._client.proxy.Select(location, name)
 
-    def get_all(self, format=None, order=None, offset=None, maxcount=None, \
+    def get_all(self, fmt=None, order=None, offset=None, maxcount=None, \
         fields=None):
         """Fetches the entire selected phonebook. Actual data is returned via
         the `on_transfer_complete` event, if the transfer is successful. This
@@ -338,30 +343,31 @@ class PhonebookClient:
 
         # all filters are optional
         filters = {}
-        lcls = locals()
-        for f in ["format", "order", "offset", "maxcount", "fields"]:
-            if lcls[f] is not None:
-                filters[f] = lcls[f]
+        if fmt is not None:
+            filters.update({"Format": fmt})
+        if order is not None:
+            filters.update({"Order": order})
+        if offset is not None:
+            filters.update({"Offset": UInt16(offset)})
+        if maxcount is not None:
+            filters.update({"MaxCount": UInt16(maxcount)})
+        if fields is not None:
+            filters.update({"Fields": Array(fields, signature="s")})
 
         # start the transfer
         tx_path, tx_props = self._client.proxy.PullAll("", filters)
         self._transfer = Bluez5Utils.get_transfer(
-            bus=self._system_bus,
+            bus=self._session_bus,
             transfer_path=tx_path)
         self._transfer_file = tx_props["Filename"]
-        self._transfer_handle = self.io_loop.call_later(
-            delay=1,
-            callback=self._transfer_check)
 
     def abort(self):
         """Abort the active transfer, if any. The underlying Obex session is
         left as-is. If there is no active transfer, this does nothing.
         """
         if self._transfer is not None:
-            self.io_loop.remove_timeout(self._transfer_handle)
             self._transfer = None
             self._transfer_file = None
-            self._transfer_handle = None
 
 class Profile(dbus.service.Object):
     """Encapsulates a Profile bluez5 object.
