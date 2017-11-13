@@ -178,9 +178,12 @@ class SerialPortConnection:
         32: "Emergency calls only"
     }
 
-    def __init__(self, socket, async_reply_delay, io_loop):
+    def __init__(self, socket, device_path, async_reply_delay, io_loop):
         self._async_reply_delay = async_reply_delay
         self._io_loop = io_loop
+        # socket.getpeername() returns different address
+        # so use the end of the device path instead
+        self._peer = device_path[-17:].replace("_", ":")
         self._remainder = b''
         # <code>: [{} ->
         #   "future": <future>
@@ -196,6 +199,12 @@ class SerialPortConnection:
         self._stream.set_close_callback(self._on_close)
         self._stream.read_until_close(
             streaming_callback=self._data_ready)
+
+    @property
+    def peer(self):
+        """Returns the address of the remote device.
+        """
+        return self._peer
 
     def close(self):
         """Voluntarily closes the RFCOMM connection.

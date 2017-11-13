@@ -32,7 +32,7 @@
         }
     },
 
-    "profiles": ["pbap"],
+    "profiles": ["hfp"],
     "preferredaddress": "",
     "retryinterval": 15
 

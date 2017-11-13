@@ -103,6 +103,7 @@ class ProfileManager:
         try:
             conn = SerialPortConnection(
                 socket=socket,
+                device_path=device,
                 async_reply_delay=5,
                 io_loop=self.io_loop)
         except Exception:

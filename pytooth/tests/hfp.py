@@ -93,6 +93,7 @@ class TestApplication:
         # keep phone proxy reference if connected
         self.phone = None
         if connected:
+            logger.debug("Peer MAC address = {}".format(phone.peer))
             self.phone = phone
             phone.on_connected_changed = self._phone_connected_changed
             phone.on_event = self._phone_event

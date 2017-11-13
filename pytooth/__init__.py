@@ -15,7 +15,7 @@ def init():
     
     session_bus = dbus.SessionBus() # needed for org.bluez.obex
     system_bus = dbus.SystemBus()   # needed for everything else
-    logger.debug("Acquiring DBus name '{}'... on SystemBus".format(
+    logger.debug("Acquiring DBus name '{}' on system bus...".format(
         DBUS_ORG_NAME))
     system_bus.request_name(name=DBUS_ORG_NAME)
     logger.debug("DBus name acquired.")

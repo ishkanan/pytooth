@@ -69,6 +69,11 @@ class RemotePhone:
         """Multi-call handling capabilities of the AG."""
         return self._ag_multicall
 
+    @property
+    def peer(self):
+        """Address of the remote device."""
+        return self._connection.peer
+        
     def answer(self):
         """Request to answer an incoming call. This function raises an
         InvalidOperationError if not started or handshake is pending. Otherwise
@@ -179,6 +184,8 @@ class RemotePhone:
         """Performs a handshake with the AG according to the spec, plus a few
         other commands to set us up nicely.
         """
+        logger.debug("HFP handshake is starting...")
+
         try:
 
             # features
