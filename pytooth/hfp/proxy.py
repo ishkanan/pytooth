@@ -72,7 +72,9 @@ class RemotePhone:
     @property
     def peer(self):
         """Address of the remote device."""
-        return self._connection.peer
+        if self._connection is not None:
+            return self._connection.peer
+        return None
         
     def answer(self):
         """Request to answer an incoming call. This function raises an
