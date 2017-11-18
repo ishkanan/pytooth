@@ -5,6 +5,8 @@ import logging
 from tornado.ioloop import IOLoop
 import pyaudio
 
+from pytooth.other.buffers import ThreadSafeMemoryBuffer
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,7 +15,8 @@ class PortAudioSink:
     PortAudio stream.
     """
 
-    def __init__(self, decoder, socket, read_mtu, card_name, buffer_secs = 2):
+    def __init__(self, decoder, socket, read_mtu, card_name, \
+        buffer_msecs = 2000):
         # attach to decoder
         self._decoder = decoder
         self._decoder.on_data_ready = self._data_ready
@@ -41,9 +44,10 @@ class PortAudioSink:
         self.on_fatal_error = None
 
         # other
+        self._buffer = None
         self._buffering = False
-        self._buffer_start = None
-        self._buffer_secs = buffer_secs
+        self._buffer_end = None
+        self._buffer_duration = timedelta(milliseconds=buffer_msecs)
         self.ioloop = IOLoop.current()
         self._socket = socket
         self._read_mtu = read_mtu
@@ -57,8 +61,6 @@ class PortAudioSink:
 
         # player stream setup can only occur once we know the PCM format
         self._player = pyaudio.PyAudio()
-        self._buffer = b''
-        self._buffering = True
         self._stream = None
         self._pcm_format_set = False
         self._started = True
@@ -83,8 +85,9 @@ class PortAudioSink:
             self._player.terminate()
             self._player = None
         
-        self._buffer = b''
+        self._buffer = None
         self._buffering = False
+        self._buffer_end = None
         self._socket = None
 
     def _stop_data_ready(self):
@@ -108,8 +111,8 @@ class PortAudioSink:
                 len(data)))
             return
 
-        # remember bytes to later submit to PortAudio
-        self._buffer += data
+        #logger.debug("Received {} bytes from decoder.".format(len(data)))
+        self._buffer.append(data)
 
     def _data_required(self, in_data, frame_count, time_info, status):
         """Called when PortAudio needs more samples. Called on a separate
@@ -125,10 +128,10 @@ class PortAudioSink:
 
         # if we don't have enough data, we hand PA silence frames until our
         # buffering window is finished
+        # note: this guard stops us creating useless datetime objects if we
+        #       are not buffering
         if self._buffering:
-            if not self._buffer_start:
-                self._buffer_start = datetime.now()
-            self._buffering = (datetime.now() - self._buffer_start).total_seconds() < self._buffer_secs
+            self._buffering =  datetime.now() < self._buffer_end
 
         # decide what data to hand PA
         if self._buffering:
@@ -136,17 +139,16 @@ class PortAudioSink:
             return (self._underrun_frame * frame_count, pyaudio.paContinue)
         else:
             req_byte_count = self._frame_size * frame_count
-            if len(self._buffer) >= req_byte_count:
+            if self._buffer.length >= req_byte_count:
                 # we have real data to give PA
-                data = self._buffer[0:req_byte_count]
-                self._buffer = self._buffer[req_byte_count:]
+                data = self._buffer.get(req_byte_count)
                 return (data, pyaudio.paContinue)
             else:
                 logger.debug("Underrun -started buffering.")
 
                 # we've underrun, so start buffering again!
                 self._buffering = True
-                self._buffer_start = datetime.now()
+                self._buffer_end = datetime.now() + self._buffer_duration
                 return (self._underrun_frame * frame_count, pyaudio.paContinue)
 
     def _fatal_decoder_error(self, error):
@@ -184,9 +186,10 @@ class PortAudioSink:
             stream_callback=self._data_required)
         self._pcm_format_set = True
 
-        # and we need to buffer desired amount
+        # we need to buffer desired amount
+        self._buffer = ThreadSafeMemoryBuffer()
         self._buffering = True
-        self._buffer_start = datetime.now()
+        self._buffer_end = datetime.now() + self._buffer_duration
 
-        # and finally start
+        # finally start
         self._stream.start_stream()

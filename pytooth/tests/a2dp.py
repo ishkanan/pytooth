@@ -103,7 +103,7 @@ class TestApplication:
             socket=transport.socket,
             read_mtu=transport.read_mtu,
             card_name="pulse",
-            buffer_secs=2)
+            buffer_msecs=500)
         self.sink.start()
         logger.info("Built new PortAudioSink with SBCDecoder.")
 
