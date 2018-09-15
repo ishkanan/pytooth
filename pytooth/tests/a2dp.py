@@ -7,7 +7,7 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.a2dp.sbc import SBCDecoder
-from pytooth.a2dp.sinks import PortAudioSink
+from pytooth.a2dp.sinks import AlsaAudioSink, PortAudioSink
 from pytooth.adapters import OpenPairableAdapter
 
 logger = logging.getLogger(__name__)
@@ -97,15 +97,14 @@ class TestApplication:
     def _start_audio(self, transport=None):
         # streaming has started, obviously
 
-        self.sink = PortAudioSink(
+        self.sink = AlsaAudioSink(
             decoder=SBCDecoder(
                 libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
             socket=transport.socket,
             read_mtu=transport.read_mtu,
-            card_name="pulse",
-            buffer_msecs=500)
+            device_name="default")
         self.sink.start()
-        logger.info("Built new PortAudioSink with SBCDecoder.")
+        logger.info("Built new AlsaAudioSink with SBCDecoder.")
 
     def _stop_audio(self):
         # no more streaming, obviously
@@ -113,4 +112,4 @@ class TestApplication:
         if self.sink:
             self.sink.stop()
             self.sink = None
-            logger.info("Destroyed PortAudioSink.")
+            logger.info("Destroyed AlsaAudioSink.")
