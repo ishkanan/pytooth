@@ -31,7 +31,7 @@ print("packages_dir = {}\nsrc_dir = {}".format(
 # compile and install sources
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
 sources = [
-    ("pygobject", "3.22.0"),
+    ("pygobject", "3.30.1"),
     ("dbus-python", "1.2.8"),
     ("sbc", "1.2.0")
 ]
