@@ -290,7 +290,7 @@ class AlsaAudioSink:
 
         # open the ALSA device
         self._device = alsaaudio.PCM(alsaaudio.PCM_PLAYBACK, device=self._device_name)
-        self._device.setchannels(self._decoder.channel_mode)
+        self._device.setchannels(self._decoder.channels)
         self._device.setrate(self._decoder.sample_rate)
         self._device.setformat(getattr(alsaaudio, alsa_format))
         self._pcm_format_set = True
