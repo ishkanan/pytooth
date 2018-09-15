@@ -1,4 +1,4 @@
-dbus-python==1.2.8
+dbus-python==1.2.4
 pyaudio==0.2.11
 pygobject==3.30.1
 setproctitle==1.1.10

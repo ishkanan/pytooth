@@ -278,8 +278,8 @@ class MediaManager:
                 "to acquire it.")
         else:
             # acquire the transport to begin receiving data
-            # note: we don't manually release it, that is done by a
-            #       remote device disconnect event
+            # note: transport release is either manual or implicit when
+            #       a remote device disconnects
             if not transport.acquired and status == "playing":
                 try:
                     transport.acquire()
@@ -289,10 +289,12 @@ class MediaManager:
                         self.on_media_setup_error(
                             adapter=adapter,
                             error="{}".format(e))
-            # elif status in ["paused", "stopped"]:
-            #     # bluez5 has taken back ownership of the transport
-            #     # dirty hack, but watevs...
-            #     transport._acquired = False
+            elif status in ["paused", "stopped"]:
+                # playback stopped, so release the transport
+                try:
+                    transport.release()
+                except Exception as e:
+                    logger.exception(e)
 
         # state update
         if self.on_stream_state_changed:

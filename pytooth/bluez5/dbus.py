@@ -179,6 +179,16 @@ class MediaTransport:
                 self._fd, self._read_mtu, self._write_mtu))
         self._acquired = True
 
+    def release(self):
+        """Manually releases the media transport.
+        """
+        if not self._acquired:
+            return
+
+        logger.debug("Releasing the media transport.")
+        self._proxy.proxy.Release()
+        self._acquired = False
+
     def __repr__(self):
         return "<MediaTransport: "+self._proxy.path+">"
 
