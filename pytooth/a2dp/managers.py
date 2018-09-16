@@ -293,6 +293,11 @@ class MediaManager:
                 # playback stopped, so release the transport
                 try:
                     transport.release()
+                    if self.on_stream_state_changed:
+                        self.on_stream_state_changed(
+                            adapter=adapter,
+                            transport=transport,
+                            state="released")
                 except Exception as e:
                     logger.exception(e)
 
