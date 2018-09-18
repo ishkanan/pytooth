@@ -6,8 +6,8 @@ from tornado.ioloop import IOLoop
 
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.hfp import HandsFreeProfile
-from pytooth.hfp.sinks import PortAudioSink
-from pytooth.hfp.sources import PortAudioSource
+from pytooth.hfp.sinks import AlsaAudioSink
+from pytooth.hfp.sources import AlsaAudioSource
 from pytooth.other.pumps import RealTimeSocketPump
 
 logger = logging.getLogger(__name__)
@@ -131,19 +131,18 @@ class TestApplication:
         # - phone makes call
         # - phone receives call
 
-        self._sink = PortAudioSink(
+        self._sink = AlsaAudioSink(
             socket_pump=self._socket_pump,
-            card_name="pulse",
-            buffer_msecs=500)
+            device_name="default")
         self._sink.start()
-        logger.info("Built new PortAudioSink.")
+        logger.info("Built new AlsaAudioSink.")
 
-        self._source = PortAudioSource(
+        self._source = AlsaAudioSource(
             socket_pump=self._socket_pump,
             mtu=mtu,
-            card_name="pulse")
+            device_name="default")
         self._source.start()
-        logger.info("Built new PortAudioSource.")
+        logger.info("Built new AlsaAudioSource.")
 
         self._socket_pump.start(
             socket=socket,
@@ -158,12 +157,12 @@ class TestApplication:
         if self._sink:
             self._sink.stop()
             self._sink = None
-            logger.info("Destroyed PortAudioSink.")
+            logger.info("Destroyed AlsaAudioSink.")
 
         if self._source:
             self._source.stop()
             self._source = None
-            logger.info("Destroyed PortAudioSource.")
+            logger.info("Destroyed AlsaAudioSource.")
 
         if self._socket_pump.started:
             self._socket_pump.stop()

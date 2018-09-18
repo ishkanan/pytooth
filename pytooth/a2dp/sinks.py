@@ -293,4 +293,5 @@ class AlsaAudioSink:
         self._device.setchannels(self._decoder.channels)
         self._device.setrate(self._decoder.sample_rate)
         self._device.setformat(getattr(alsaaudio, alsa_format))
+        self._device.setperiodsize(self._read_mtu / self._decoder.channels)
         self._pcm_format_set = True
