@@ -31,7 +31,8 @@ print("packages_dir = {}\nsrc_dir = {}".format(
 # compile and install sources
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
 sources = [
-    ("sbc", "1.2.0")
+    ("sbc", "1.2.0"),
+    ("dbus-python", "1.2.8")
 ]
 for lib in sources:
     print("Installing {}-{} library from source ...".format(
