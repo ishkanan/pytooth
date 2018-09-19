@@ -10,23 +10,20 @@ Theoretically this library can run on any Linux distribution that can support th
 This library depends on many system packages and Python modules. The sections below describe each set of dependencies in detail.
 
 ## Packages: System
-The table below lists the packages for an Ubuntu 16.04 (Xenial) system. The names will most likely differ for non-Ubuntu distributions. Documentation contributions are welcome!
+The table below lists the packages for an Ubuntu 18.04 (Bionic) system. The names will most likely differ for non-Ubuntu distributions. Documentation contributions are welcome!
 
 **Package** | **Description**
 --- | ---
-bluez | Bluetooth stack for Linux. Must use version 5.43 or above due to fatal bug in earlier versions
+bluez | Bluetooth stack for Linux. Minimum version 5.43 or above due to fatal bug in earlier versions
 dbus-x11 | X-11 dependencies for DBus
 gobject-introspection | Dependency for **pygobject**
-libasound2-plugins | Allows ALSA to play/capture audio via PulseAudio
+libasound2-dev | Dependency for **pyalsaaudio**
 libcairo2-dev | Dependency for **pygobject**
 libdbus-1-dev | Dependency for **dbus-python**
 libdbus-glib-1-dev | Dependency for **dbus-python**
 libffi-dev | Dependency for **pygobject**
 libgirepository1.0-dev | Dependency for **pygobject**
 libsndfile1-dev | Dependency for **libsbc**
-portaudio19-dev | Dependency for **pyaudio**
-pulseaudio | Advanced sound server for Linux
-python3-cairo-dev | Dependency for **pygobject**
 python3-cairo-dev | Dependency for **pygobject**
 python3-dev | Dependency for **pygobject** and **dbus-python**
 python3-gi | Dependency for **pygobject**
@@ -35,13 +32,13 @@ python3-pyaudio | Dependency for **pyaudio**
 ## Packages: Python
 **Package** | **Description**
 --- | ---
-coverage | Coverage reporter for Nose, when automated tests eventually get written
 dbus-python | DBus library. Could not use [pydbus](https://github.com/LEW21/pydbus) due to issues with Unix socket interpretation/translation
-nose | Test framework/runner
-pyaudio | Interface to the [PortAudio](http://www.portaudio.com) application
+pyalsaaudio | Interface to ALSA
+pycairo | Wrapper for Cairo
 pygobject | Interface to the GTK framework
 setproctitle | Easy identification of app in process listings
 tornado | Asynchronous web/networking framework
+wheel | Required for project build
 
 ## Other
 Pytooth interfaces with a C-based SBC codec library called [libsbc](https://www.kernel.org/pub/linux/bluetooth/sbc-1.2.tar.xz) directly via Python **ctypes**. This allows for fast and reliable decoder code when using A2DP. The source code comes bundled with Pytooth and is built during installation.
@@ -87,33 +84,19 @@ to
 
 in the DBus system config file ```/usr/share/dbus-1/system.conf```. DBus should apply the changes immediately.
 
-## PulseAudio
-PulseAudio enables its Bluetooth plugin by default. This interferes with Pytooth operation and must be disabled. Edit the file ```/etc/pulse/default.pa``` and comment out the following lines:
-
-```
-### Automatically load driver modules for Bluetooth hardware
-.ifexists module-bluetooth-policy.so
-load-module module-bluetooth-policy
-.endif
-
-.ifexists module-bluetooth-discover.so
-load-module module-bluetooth-discover
-.endif
-```
-
 ## Group Membership
 Decide which user will be running the application/test apps and add that user to the following groups:
 
 * audio
 * lp
 
-If the user has active terminal sessions, then they will need to log out and back in for the membership changes to take effect.
+Existing user sessions will need to be restarted for the membership changes to take effect.
 
 ## Virtual Environment (Python 3)
-It is recommended practice to run Python applications in Python [Virtual Environments](https://virtualenv.pypa.io/en/stable). The pros and cons for doing so are aplenty on the internet, so won't be repeated here. The installer assumes it is running in a virtual environment. Note that system-level installation of the library is currently untested.
+It is recommended practice to run Python applications in Python [Virtual Environments](https://virtualenv.pypa.io/en/stable). The pros and cons for doing so are aplenty on the internet, and are beyond the scope of this documentation. The installer assumes it is running in a virtual environment. System-level installation of the library is currently untested.
 
 ## Pytooth Library
-The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) however it is not currently listed on [PyPI](https://pypi.python.org/) so cannot be installed with **pip**. The file ```setup.py``` in the root folder is the installer entry point. The installer builds and installs all source gzips located in the **packages/src** folder (**dbus-python**, **pygobject** and **libsbc**). Some of the commands require root privileges so the installer will prompt for elevation if not run as root (e.g. with **sudo**).
+The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) however it is not currently listed on [PyPI](https://pypi.python.org/) so cannot be installed with **pip**. The file ```setup.py``` in the root folder is the installer entry point. The installer builds and installs all source gzips located in the **packages/src** folder (**dbus-python** and **libsbc**). Some of the commands require root privileges so the installer will prompt for elevation.
 
 ### Install: Integration into larger project
 For integration into a larger project, ensure that the project's deployment processes invoke the ```setup.py``` script with the **install** command, for example:

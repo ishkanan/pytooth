@@ -1,7 +1,7 @@
 dbus-python==1.2.8
-pyaudio==0.2.11
+pyalsaaudio==0.8.4
+pycairo==1.17.1
 pygobject==3.30.1
 setproctitle==1.1.10
 tornado==4.5.2
-pyalsaaudio==0.8.4
 wheel==0.31.1

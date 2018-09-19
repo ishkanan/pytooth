@@ -7,7 +7,7 @@ from tornado.ioloop import IOLoop
 import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.a2dp.sbc import SBCDecoder
-from pytooth.a2dp.sinks import AlsaAudioSink, PortAudioSink
+from pytooth.a2dp.sinks import AlsaAudioSink
 from pytooth.adapters import OpenPairableAdapter
 
 logger = logging.getLogger(__name__)
