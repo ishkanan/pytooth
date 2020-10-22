@@ -1,9 +1,6 @@
 
 from datetime import timedelta
 import logging
-import select
-from threading import Thread
-from time import sleep
 
 import alsaaudio
 from tornado.ioloop import IOLoop
@@ -27,6 +24,7 @@ class AlsaAudioSource:
         self._device_name = device_name
         self._mtu = mtu
         self._started = False
+        self.on_fatal_error = None
 
     def start(self):
         """Starts the source. If already started, this does nothing.
@@ -43,7 +41,7 @@ class AlsaAudioSource:
         self._device.setchannels(1)
         self._device.setrate(8000)
         self._device.setformat(alsaaudio.PCM_FORMAT_S16_LE)
-        self._device.setperiodsize(2000) # 0.25 seconds buffer
+        self._device.setperiodsize(2000)  # 0.25 seconds buffer
         self._deadline = timedelta(milliseconds=250)
         self._started = True
         self.ioloop.add_callback(self._read_data)
@@ -55,7 +53,7 @@ class AlsaAudioSource:
             return
 
         self._started = False
-        
+
         # cleanup ALSA device
         if not self._device:
             self._device.close()
@@ -78,7 +76,7 @@ class AlsaAudioSource:
         self.ioloop.add_timeout(
             deadline=self._deadline,
             callback=self._read_data)
-        
+
     def _fatal_pump_error(self, error):
         """Called when a fatal socket pump error occurs. The pump automatically
         stops.

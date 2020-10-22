@@ -4,7 +4,6 @@ import logging
 
 from tornado.ioloop import IOLoop
 
-import pytooth
 from pytooth.adapters import OpenPairableAdapter
 from pytooth.pbap import PhoneBookAccessProfile
 
@@ -90,8 +89,7 @@ class TestApplication:
         really only occurs if a serious issue with the Bluetooth stack is
         encountered by the OS.
         """
-        logger.info("PBAP profile is {}avaiable.".format(
-            "" if avaiable else "not "))
+        logger.info("PBAP profile is {}avaiable.".format("" if available else "not "))
 
     def _client_transfer_complete(self, client, data):
         """Fired when a transfer has completed successfully.

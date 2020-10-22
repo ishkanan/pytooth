@@ -1,6 +1,5 @@
 """http://www.bluez.org/bluez-5-api-introduction-and-porting-guide/
 """
-
 from functools import partial
 import logging
 
@@ -17,9 +16,7 @@ class BaseAdapter:
     configure an agent. A GI loop is required to receieve DBus signals.
     """
 
-    def __init__(self, system_bus, io_loop, retry_interval, \
-        preferred_address=None):
-
+    def __init__(self, system_bus, io_loop, retry_interval, preferred_address=None):
         # properties
         self._address = None
         self._connected = False
@@ -180,7 +177,7 @@ class BaseAdapter:
                     callback=self.on_connected_changed,
                     adapter=self,
                     connected=self.connected)
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get suitable adapter.")
 
         # try again if no suitable adapter was found
@@ -197,7 +194,7 @@ class BaseAdapter:
             return
 
         logger.debug("SIGNAL: interface={}, path={}, changed={}, "
-            "invalidated={}".format(interface, path, changed, invalidated))
+                     "invalidated={}".format(interface, path, changed, invalidated))
 
         # is it the adapter we have found suitable?
         if path == self.path:
@@ -225,6 +222,7 @@ class BaseAdapter:
                     connected=False)
                 self.io_loop.add_callback(
                     callback=self._find_suitable_adapter)
+
 
 class OpenPairableAdapter(BaseAdapter):
     """Adapter that can accept unsecured (i.e. no PIN) pairing requests.
@@ -275,8 +273,7 @@ class OpenPairableAdapter(BaseAdapter):
     def _on_agent_release(self):
         """Called when bluez5 has unregistered the agent.
         """
-        logger.debug("Agent was unregistered. Attempting to re-register in 15 "
-            "seconds...")
+        logger.debug("Agent was unregistered. Attempting to re-register in 15s...")
         self.io_loop.call_later(
             delay=15,
             callback=OpenPairableAdapter.register_agent,

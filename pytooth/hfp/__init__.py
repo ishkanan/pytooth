@@ -2,7 +2,6 @@
 import logging
 
 from pytooth.hfp.managers import MediaManager, ProfileManager
-from pytooth.bluez5.helpers import Bluez5Utils
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class HandsFreeProfile:
         self._adapter.set_pairable(
             enabled=enabled,
             timeout=timeout)
-    
+
     def _adapter_connected_changed(self, adapter, connected):
         """Adapter connected or disconnected.
         """
@@ -148,8 +147,9 @@ class HandsFreeProfile:
 
         # try listening again if we are not
         # note: potential cause of log spam!
-        if self._mediamgr.status() == "idle":
-            self._mediamgr.start(adapter=adapter)
+        if self._mediamgr.status(adapter=adapter) == "idle":
+            logger.debug("Going to restart MediaManager instance in 10s...")
+            self.io_loop.call_later(10, self._mediamgr.start, adapter=adapter)
 
     def _profile_connected_changed(self, device, connected, phone):
         """Service-level connection has been established or ended with a

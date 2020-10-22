@@ -99,7 +99,7 @@ class TestApplication:
 
         self.sink = AlsaAudioSink(
             decoder=SBCDecoder(
-                libsbc_so_file="/usr/local/lib/libsbc.so.1.2.0"),
+                libsbc_so_file="/usr/lib/x86_64-linux-gnu/libsbc.so.1.2.2"),
             socket=transport.socket,
             read_mtu=transport.read_mtu,
             device_name="default")

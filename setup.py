@@ -1,7 +1,6 @@
 """Setup entry point."""
 
 import os
-import platform
 
 from setuptools import setup, find_packages
 
@@ -13,20 +12,13 @@ with open('README.md') as f:
 # parse the reqs/deps files
 with open('requirements.txt') as f:
     install_requirements = f.read().split("\n")
-with open('requirements_dev.txt') as f:
-    test_requirements = f.read().split("\n")
-with open('dependencies.txt') as f:
-    dependency_requirements = f.read().split("\n")
 
 # prepare
 packages_dir = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     "packages")
-src_dir = os.path.join(
-    packages_dir,
-    "src")
-print("packages_dir = {}\nsrc_dir = {}".format(
-    packages_dir, src_dir))
+src_dir = os.path.join(packages_dir, "src")
+print("packages_dir = {}\nsrc_dir = {}".format(packages_dir, src_dir))
 
 # compile and install sources
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
@@ -34,8 +26,7 @@ sources = [
     ("sbc", "1.2.0"),
 ]
 for lib in sources:
-    print("Installing {}-{} library from source ...".format(
-        lib[0], lib[1]))
+    print("Installing {}-{} library from source ...".format(lib[0], lib[1]))
     os.system(
         "cd '{srcdir}'; "
         "tar xf {libname}-{libver}.tar.gz; "
@@ -62,9 +53,9 @@ setup(
     package_data={
         "": ["*.txt", "*.rst", "*.md"]
     },
-    tests_require=test_requirements,
+    tests_require=[],
     install_requires=install_requirements,
-    dependency_links=dependency_requirements,
+    dependency_links=[],
     entry_points={
         "console_scripts": [
             "pytooth-test = pytooth.tests.main:main",
@@ -81,4 +72,3 @@ for lib in sources:
             srcdir=src_dir,
             libname=lib[0],
             libver=lib[1]))
-

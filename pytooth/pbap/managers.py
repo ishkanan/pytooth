@@ -4,7 +4,6 @@
 import logging
 
 from dbus import UInt16
-from tornado.ioloop import IOLoop
 
 from pytooth.bluez5.dbus import ObexSessionFactory, PhonebookClient, Profile
 from pytooth.bluez5.helpers import Bluez5Utils
@@ -27,8 +26,6 @@ class ProfileManager:
 
         self._started = False
         self._system_bus = system_bus
-
-        self.io_loop = IOLoop.instance()
 
         # events
         self.on_connected_changed = None
@@ -120,6 +117,7 @@ class ProfileManager:
             if self.on_unexpected_stop:
                 self.on_unexpected_stop()
 
+
 class ClientManager:
     """Manages the creation and destruction of client connections to PBAP
     servers, and the required underlying Obex sessions. Note this will only
@@ -189,8 +187,7 @@ class ClientManager:
             try:
                 self._factory.destroy_session(session=session)
             except Exception:
-                logger.exception("Error disconnecting Obex session to '{}'."
-                    "".format(destination))
+                logger.exception("Error disconnecting Obex session to '{}'.".format(destination))
             raise ConnectionError("Error connecting to '{}'.".format(
                 destination))
 
