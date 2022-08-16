@@ -14,28 +14,19 @@ The table below lists the packages for an Ubuntu 18.04 (Bionic) system. The name
 
 **Package** | **Description**
 --- | ---
-bluez | Bluetooth stack for Linux. Minimum version 5.43 or above due to fatal bug in earlier versions
+bluez | Bluetooth stack for Linux. Minimum version 5.47 to include critical bug fixes.
 dbus-x11 | X-11 dependencies for DBus
-gobject-introspection | Dependency for **pygobject**
 libasound2-dev | Dependency for **pyalsaaudio**
-libcairo2-dev | Dependency for **pygobject**
-libdbus-1-dev | Dependency for **dbus-python**
-libdbus-glib-1-dev | Dependency for **dbus-python**
-libffi-dev | Dependency for **pygobject**
-libgirepository1.0-dev | Dependency for **pygobject**
 libsndfile1-dev | Dependency for **libsbc**
-python3-cairo-dev | Dependency for **pygobject**
-python3-dev | Dependency for **pygobject** and **dbus-python**
-python3-gi | Dependency for **pygobject**
+python-gobject | Dependency for **pydbus**
 python3-pyaudio | Dependency for **pyaudio**
 
 ## Packages: Python
 **Package** | **Description**
 --- | ---
-dbus-python | DBus library. Could not use [pydbus](https://github.com/LEW21/pydbus) due to issues with Unix socket interpretation/translation
+gobject, pygobject | Interfaces to the GTK framework
+pydbus | DBus interface library
 pyalsaaudio | Interface to ALSA
-pycairo | Wrapper for Cairo
-pygobject | Interface to the GTK framework
 setproctitle | Easy identification of app in process listings
 tornado | Asynchronous web/networking framework
 wheel | Required for project build
@@ -53,10 +44,10 @@ This section details how to configure the various depedency systems and install 
 These instructions are generally distribution-agnostic, however configuration file locations may vary between distributions. The instructions are correct for Ubuntu and (most likely) Debian-based distros. The instructions assume a distro running **systemd**. For those that do not, the reader will need to substitute in the correct steps. Again, documentation contributions are welcome =)
 
 ## Bluetooth
-Enable Bluez5 custom commands by appending **--compat** to the ```ExecStart``` section of the systemd unit file ```/usr/lib/systemd/system/bluetooth.service```, like so:
+Enable Bluez5 custom commands by appending **--compat** to the ```ExecStart``` section of the systemd unit file ```/lib/systemd/system/bluetooth.service```, like so:
 
 ```
-ExecStart=/usr/libexec/bluetooth/bluetoothd --compat
+ExecStart=/usr/lib/bluetooth/bluetoothd --compat
 ```
 
 Restart Bluetooth with ```systemctl restart bluetooth.service```.
@@ -64,23 +55,11 @@ Restart Bluetooth with ```systemctl restart bluetooth.service```.
 ## DBus
 Allow Pytooth to send DBus messages and claim ownership of the **ishkanan.pytooth** namespace by changing:
 
-```
-<deny own="*"/>
-```
-to
-```
-<allow own="*"/>
-```
+`<deny own="*"/>` to `<allow own="*"/>`
 
 and
 
-```
-<deny send_type="method_call"/>
-```
-to
-```
-<allow send_type="method_call"/>
-```
+`<deny send_type="method_call"/>` to `<allow send_type="method_call"/>`
 
 in the DBus system config file ```/usr/share/dbus-1/system.conf```. DBus should apply the changes immediately.
 
@@ -96,13 +75,12 @@ Existing user sessions will need to be restarted for the membership changes to t
 It is recommended practice to run Python applications in Python [Virtual Environments](https://virtualenv.pypa.io/en/stable). The pros and cons for doing so are aplenty on the internet, and are beyond the scope of this documentation. The installer assumes it is running in a virtual environment. System-level installation of the library is currently untested.
 
 ## Pytooth Library
-The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) however it is not currently listed on [PyPI](https://pypi.python.org/) so cannot be installed with **pip**. The file ```setup.py``` in the root folder is the installer entry point. The installer builds and installs all source gzips located in the **packages/src** folder (**dbus-python** and **libsbc**). Some of the commands require root privileges so the installer will prompt for elevation.
+The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) however it is not currently listed on [PyPI](https://pypi.python.org/) so cannot be installed with **pip**. The file `setup.py` in the root folder is the installer entry point. The installer builds and installs all source gzips located in the **packages/src** folder (**libsbc**). Some of the commands require root privileges so the installer will prompt for elevation.
 
 ### Install: Integration into larger project
-For integration into a larger project, ensure that the project's deployment processes invoke the ```setup.py``` script with the **install** command, for example:
+For integration into a larger project, ensure that the project's deployment processes invoke the `setup.py` script with the **install** command, for example:
 
-```
-#!bash
+```bash
 $ python setup.py install
 ```
 
@@ -111,19 +89,17 @@ Pytooth provides a bare-bones test script for each supported Bluetooth profile, 
 
 First, install the library with:
 
-```
-#!bash
+```bash
 $ python setup.py install
 ```
 
 The installer creates a test command, **pytooth-test**, that is used to launch one or more test scripts simultaneously. It is executed like so:
 
-```
-#!bash
+```bash
 $ pytooth-test -c <config file>
 ```
 
-where ```<config file>``` is a copy of (or the actual file) **pytooth/tests/test_config.json**.
+where `<config file>` is a copy of (or the actual file) **pytooth/tests/test_config.json**.
 
 **Key** | **Value**
 --- | ---
@@ -132,10 +108,9 @@ profiles | A list of profiles to launch, where valid items are "a2dp", "hfp" and
 retryinterval | Time, in seconds, that the library will search for a suitable Bluetooth adapter to use; can usually be left at the default value (15)
 
 ### Install: Library development
-To install the library for development purposes, clone the repository and invoke the ```setup.py``` script with the **develop** command, like so:
+To install the library for development purposes, clone the repository and invoke the `setup.py` script with the **develop** command, like so:
 
-```
-#!bash
+```bash
 $ python setup.py develop
 ```
 
