@@ -32,6 +32,7 @@ print("packages_dir = {}\nsrc_dir = {}".format(
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
 sources = [
     ("sbc", "1.2.0"),
+    ("dbus-python", "1.2.8")
 ]
 for lib in sources:
     print("Installing {}-{} library from source ...".format(
@@ -51,12 +52,12 @@ for lib in sources:
 # go-go
 setup(
     name="pytooth",
-    version="1.0.1",
-    description="A Linux Bluez5-based implementation of various Bluetooth profiles.",
+    version="1.0.0",
+    description="A Linux Bluez5-based implementation of A2DP and HFP.",
     long_description=long_description,
     author="Anthony Ishkan",
     author_email="anthony.ishkan@gmail.com",
-    url="https://github.com/ishkanan/pytooth",
+    url="https://bitbucket.org/ishkanan/pytooth",
     packages=find_packages(".", include=["*"]),
     package_dir={"": "."},
     package_data={
@@ -81,4 +82,3 @@ for lib in sources:
             srcdir=src_dir,
             libname=lib[0],
             libver=lib[1]))
-
