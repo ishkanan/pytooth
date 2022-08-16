@@ -1,1 +1,0 @@
-git+git://github.com/ishkanan/pydbus@master#egg=pydbus
