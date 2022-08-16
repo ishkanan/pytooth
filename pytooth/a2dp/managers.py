@@ -12,7 +12,7 @@ from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
                                     SBC_CODEC, \
                                     SBC_CONFIGURATION
 from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
-from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
+from pytooth.bluez5.helpers import Bluez5Utils
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class ProfileManager:
         """
         if self._started:
             return
-        
+
         self._register()
         self._started = True
 
@@ -48,14 +48,14 @@ class ProfileManager:
         """
         if not self._started:
             return
-        
+
         self._unregister()
         self._started = False
 
     @property
     def started(self):
         return self._started
-        
+
     def _register(self):
         """Registers the profile implementation endpoint on DBus.
         """
@@ -68,7 +68,7 @@ class ProfileManager:
         self._profile.on_disconnect = self._profile_on_disconnect
         self._profile.on_release = self._profile_on_release
 
-        self._profilemgr_proxy.proxy.RegisterProfile(
+        self._profilemgr_proxy.RegisterProfile(
             A2DP_DBUS_PROFILE_ENDPOINT,
             A2DP_PROFILE_UUID,
             {
@@ -82,7 +82,7 @@ class ProfileManager:
         """Unregisters the profile endpoint on DBus.
         """
         try:
-            self._profilemgr_proxy.proxy.UnregisterProfile(
+            self._profilemgr_proxy.UnregisterProfile(
                 A2DP_DBUS_PROFILE_ENDPOINT)
             logger.debug("Unregistered A2DP profile.")
         except Exception:
@@ -133,12 +133,12 @@ class MediaManager:
         self.on_unexpected_release = None
 
         # subscribe to property changes
-        system_bus.add_signal_receiver(
-            handler_function=self._player_properties_changed,
-            signal_name="PropertiesChanged",
-            dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
-            arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
-            path_keyword="path")
+        # system_bus.add_signal_receiver(
+        #     handler_function=self._player_properties_changed,
+        #     signal_name="PropertiesChanged",
+        #     dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
+        #     arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
+        #     path_keyword="path")
 
     def start(self, adapter):
         """Starts a media connection via specified adapter. If already started,
@@ -155,6 +155,7 @@ class MediaManager:
                 "streamstatus": None,
                 "transport": None
             }})
+        adapter.on_properties_changed = self._player_properties_changed
 
     def stop(self, adapter):
         """Stops a media connection via specified adapter. If already stopped,
@@ -164,16 +165,16 @@ class MediaManager:
             return
 
         self._unregister(adapter)
+        adapter.on_properties_changed = None
         self._connections.pop(adapter)
 
     @property
     def started(self):
         return self._started
-        
+
     def _register(self, adapter):
         """Registers a media endpoint on DBus.
         """
-
         # get Media proxy
         logger.debug("Fetching Media proxy...")
         media = Media(
@@ -226,44 +227,36 @@ class MediaManager:
         conn["media"].unregister(conn["endpoint"].path)
         logger.debug("Unregistered media for adapter {}".format(adapter))
 
-    def _player_properties_changed(self, interface, changed, invalidated, path):
-        """Fired by the system bus subscription when a Bluez5 object property
-        changes.
+    def _player_properties_changed(self, adapter, interface, props):
+        """Fired by the adapter when a Bluez property changes.
         """
-
-        interface = dbus_to_py(interface)
-        path = dbus_to_py(path)
-        changed = dbus_to_py(changed)
-        invalidated = dbus_to_py(invalidated)
-
-        # ignore the frequent single "position" updates
-        if len(changed) == 1 and "Position" in changed:
+        # only care about Media Player changes
+        if interface != Bluez5Utils.MEDIA_PLAYER_INTERFACE:
             return
 
-        logger.debug("SIGNAL: interface={}, path={}, changed={}, "
-            "invalidated={}".format(interface, path, changed, invalidated))
+        # ignore the frequent single "position" updates
+        if len(props) == 1 and "Position" in props:
+            return
 
-        # get adapter object for access to context
-        adapter_path = "/org/bluez/"+path.split("/")[3]
-        adapter = None
-        for k, v in self._connections.items():
-            if k.path == adapter_path:
-                adapter = k
-        if adapter is None:
+        logger.debug("SIGNAL: path={}, interface={}, props={}".format(
+            adapter.path, interface, props))
+
+        # just to be safe, check if tracking adapter
+        if adapter not in self._connections.items():
             logger.debug("Adapter not tracked, ignoring signal.")
             return
 
         # report back track update
-        if "Track" in changed:
+        if "Track" in props:
             if self.on_track_changed:
                 self.on_track_changed(
-                    track=changed["Track"])
-                
+                    track=props["Track"])
+
         # streaming status update
-        if "Status" in changed:
+        if "Status" in props:
             self._update_stream_status(
                 adapter=adapter,
-                status=changed["Status"])
+                status=props["Status"])
 
     def _update_stream_status(self, adapter, status):
         """Performs actions based on newly-received streaming status.
@@ -312,7 +305,7 @@ class MediaManager:
         """Endpoint release.
         """
         logger.debug("Media for adapter {} released by Bluez5.".format(adapter))
-        
+
         # unregister it in case it hasn't been
         try:
             self.stop(adapter=adapter)

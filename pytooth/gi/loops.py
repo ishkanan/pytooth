@@ -2,7 +2,6 @@
 """
 import logging
 
-from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 from tornado.ioloop import IOLoop
 
@@ -18,6 +17,14 @@ class GtkMainLoop:
         self.__gi_loop = GLib.MainLoop()
         self.__asyncio_loop = IOLoop.current()
         self.__started = False
+
+    @property
+    def gi_loop(self):
+        return self.__gi_loop
+
+    @property
+    def tornado_loop(self):
+        return self.__asyncio_loop
 
     def start(self):
         """Starts the loop. If already started, this does nothing.
