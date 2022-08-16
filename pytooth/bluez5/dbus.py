@@ -6,10 +6,7 @@ import logging
 import os
 import socket
 
-from dbus import Array, Byte, UInt16
-import dbus.service
-
-from pytooth.bluez5.helpers import Bluez5Utils, dbus_to_py
+from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.errors import InvalidOperationError
 
 logger = logging.getLogger(__name__)
@@ -27,26 +24,24 @@ class Media:
     def register(self, dbus_path, uuid, codec, capabilities):
         """Registers our capabilities with bluez5.
         """
-        self._media_proxy.proxy.RegisterEndpoint(
+        self._media_proxy.RegisterEndpoint(
             dbus_path,
             {
                 "UUID": uuid,
-                "Codec": Byte(codec),
-                "Capabilities": Array(capabilities, signature="y")
+                "Codec": byte(codec),
+                "Capabilities": capabilities
             })
 
     def unregister(self, dbus_path):
         """Unregisters our capabilities with bluez5.
         """
-        self._media_proxy.proxy.UnregisterEndpoint(dbus_path)
+        self._media_proxy.UnregisterEndpoint(dbus_path)
 
-class MediaEndpoint(dbus.service.Object):
+class MediaEndpoint:
     """Encapsulates a MediaEndpoint bluez5 object.
     """
 
     def __init__(self, system_bus, dbus_path, configuration):
-        dbus.service.Object.__init__(self, system_bus, dbus_path)
-
         self._configuration = configuration # desired
         self._transport = None
         self._system_bus = system_bus
@@ -55,14 +50,31 @@ class MediaEndpoint(dbus.service.Object):
         self.on_transport_setup_error = None
         self.on_transport_state_changed = None
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
-                         in_signature="oa{sv}", out_signature=None)
+    @property
+    def dbus(self):
+        return """
+        <node>
+            <interface name='{}'>
+                <method name='SetConfiguration'>
+                    <arg type='o' name='transport' direction='in'/>
+                    <arg type='a{sv}' name='properties' direction='in'/>
+                </method>
+                <method name='SelectConfiguration'>
+                    <arg type='ab' name='capabilities' direction='in'/>
+                    <arg type='ab' name='' direction='out'/>
+                </method>
+                <method name='ClearConfiguration'>
+                    <arg type='o' name='transport' direction='in'/>
+                </method>
+                <method name='Release'>
+                </method>
+            </interface>
+        </node>
+        """.format(Bluez5Utils.MEDIA_ENDPOINT_INTERFACE)
+
     def SetConfiguration(self, transport, properties):
         """Invoked by bluez5 when the transport configuration has been set.
         """
-        transport = dbus_to_py(transport)
-        properties = dbus_to_py(properties)
-
         logger.debug("Media endpoint config set - {}".format(properties))
         logger.debug("Media transport is available - {}".format(transport))
 
@@ -77,32 +89,23 @@ class MediaEndpoint(dbus.service.Object):
                 self.on_transport_setup_error(ex)
             return
 
-        # hand out
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
                 transport=self._transport,
                 available=True)
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
-                         in_signature="ab", out_signature="ab")
     def SelectConfiguration(self, capabilities):
         """Invoked by bluez5 when negotiating transport configuration with us.
         """
-        capabilities = dbus_to_py(capabilities)
-
         logger.debug("Media endpoint capabilities - {}".format(capabilities))
         return self._configuration
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
-                         in_signature="o", out_signature=None)
     def ClearConfiguration(self, transport):
         """Invoked by bluez5 when it is forgetting configuration because the
         transport was stopped.
         """
-        transport = dbus_to_py(transport)
-
-        logger.debug("Bluez5 has cleared the configuration for transport - {}"
-            "".format(transport))
+        logger.debug("Bluez5 has cleared the configuration for transport "
+            "- {}".format(transport))
 
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
@@ -110,8 +113,6 @@ class MediaEndpoint(dbus.service.Object):
                 available=False)
             self._transport = None
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.MEDIA_ENDPOINT_INTERFACE,
-                         in_signature=None, out_signature=None)
     def Release(self):
         """Invoked when bluez5 shuts down.
         """
@@ -127,13 +128,14 @@ class MediaTransport:
         self._proxy = Bluez5Utils.get_media_transport(
             bus=self._system_bus,
             transport_path=dbus_path)
-        
+
         # other state
         self._acquired = False
         self._fd = None
         self._socket = None
         self._read_mtu = None
         self._write_mtu = None
+        self._dbus_path = dbus_path
 
     @property
     def acquired(self):
@@ -168,11 +170,10 @@ class MediaTransport:
         if self._acquired:
             return
 
-        logger.debug("Acquiring OS file descriptor for transport - {}".format(
-            self._proxy.path))
-        self._fd, self._read_mtu, self._write_mtu = \
-            self._proxy.proxy.TryAcquire()
-        self._fd = self._fd.take()
+        logger.debug("Acquiring OS file descriptor for transport {}".format(
+            self._dbus_path))
+        self._fd, self._read_mtu, self._write_mtu = self._proxy.TryAcquire()
+        self._fd = os.dup(self._fd) # effectively a "take()" call
         self._socket = socket.socket(fileno=self._fd)
         logger.debug("Successfully acquired OS file descriptor - fd={}, "
             "readMTU={}, writeMTU={}".format(
@@ -186,17 +187,17 @@ class MediaTransport:
             return
 
         logger.debug("Releasing the media transport.")
-        self._proxy.proxy.Release()
+        self._proxy.Release()
         self._acquired = False
 
     def __repr__(self):
-        return "<MediaTransport: "+self._proxy.path+">"
+        return "<MediaTransport: {}>".format(self._dbus_path)
 
     def __str__(self):
-        return "<MediaTransport: "+self._proxy.path+">"
+        return "<MediaTransport: {}>".format(self._dbus_path)
 
     def __unicode__(self):
-        return "<MediaTransport: "+self._proxy.path+">"
+        return "<MediaTransport: {}>".format(self._dbus_path)
 
 class ObexSessionFactory:
     """Uses an Obex.Client1 bluez5 object to create and destroy Obex sessions.
@@ -213,7 +214,7 @@ class ObexSessionFactory:
         """Creates and returns a new Obex client session, encapsulated in a
         pytooth.bluez5.helpers.DBusProxy object.
         """
-        session_path = self._obex_client_proxy.proxy.CreateSession(
+        session_path = self._obex_client_proxy.CreateSession(
             destination,
             {
                 "Target": target
@@ -222,10 +223,10 @@ class ObexSessionFactory:
             bus=self._session_bus,
             session_path=session_path)
 
-    def destroy_session(self, session):
+    def destroy_session(self, session_path):
         """Closes an existing Obex session.
         """
-        self._obex_client_proxy.proxy.RemoveSession(session.path)
+        self._obex_client_proxy.RemoveSession(session_path)
 
 class PhonebookClient:
     """Wrapper that provides access to PBAP client methods. This class only
@@ -238,7 +239,7 @@ class PhonebookClient:
         self._client = Bluez5Utils.get_phonebook_client(
             bus=session_bus,
             session_path=session.path)
-        self._destination = session.get("Destination")
+        self._destination = session.Destination
         self._session = session
         self._session_bus = session_bus
         self._transfer = None
@@ -246,11 +247,13 @@ class PhonebookClient:
 
         # for some reason we can't access the properties via the DBusProxy
         # object. quite strange...
-        session_bus.add_signal_receiver(
-            self._properties_changed,
-            dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
-            signal_name="PropertiesChanged",
-            path_keyword="path")
+        # session_bus.add_signal_receiver(
+        #     self._properties_changed,
+        #     dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
+        #     signal_name="PropertiesChanged",
+        #     path_keyword="path")
+        self._props_changed_subscription = session.PropertiesChanged.connect(
+            self._properties_changed)
 
         # public events
         self.on_transfer_complete = None
@@ -276,7 +279,7 @@ class PhonebookClient:
             return
 
         status = properties["Status"]
-        
+
         # still going?
         if status in ["queued", "active"]:
             return
@@ -340,7 +343,7 @@ class PhonebookClient:
         if self._transfer is not None:
             return
 
-        self._client.proxy.Select(location, name)
+        self._client.Select(location, name)
 
     def get_all(self, fmt=None, order=None, offset=None, maxcount=None, \
         fields=None):
@@ -358,14 +361,14 @@ class PhonebookClient:
         if order is not None:
             filters.update({"Order": order})
         if offset is not None:
-            filters.update({"Offset": UInt16(offset)})
+            filters.update({"Offset": offset})
         if maxcount is not None:
-            filters.update({"MaxCount": UInt16(maxcount)})
+            filters.update({"MaxCount": maxcount})
         if fields is not None:
-            filters.update({"Fields": Array(fields, signature="s")})
+            filters.update({"Fields": fields})
 
         # start the transfer
-        tx_path, tx_props = self._client.proxy.PullAll("", filters)
+        tx_path, tx_props = self._client.PullAll("", filters)
         self._transfer = Bluez5Utils.get_transfer(
             bus=self._session_bus,
             transfer_path=tx_path)
@@ -379,70 +382,76 @@ class PhonebookClient:
             self._transfer = None
             self._transfer_file = None
 
-class Profile(dbus.service.Object):
+class Profile:
     """Encapsulates a Profile bluez5 object.
     """
 
     def __init__(self, system_bus, dbus_path):
-        dbus.service.Object.__init__(self, system_bus, dbus_path)
-
         self._fds = {} # device: [fd]
 
         self.on_connect = None
         self.on_disconnect = None
         self.on_release = None
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.PROFILE_INTERFACE,
-                         in_signature=None, out_signature=None)
+    @property
+    def dbus(self):
+        return """
+        <node>
+            <interface name='{}'>
+                <method name='Release'>
+                </method>
+                <method name='NewConnection'>
+                    <arg type='o' name='device' direction='in'/>
+                    <arg type='h' name='fd' direction='in'/>
+                    <arg type='a{sv}' name='fd_properties' direction='in'/>
+                </method>
+                <method name='RequestDisconnection'>
+                    <arg type='o' name='' direction='out'/>
+                </method>
+            </interface>
+        </node>
+        """.format(Bluez5Utils.PROFILE_INTERFACE)
+
     def Release(self):
         """Called when bluez5 unregisters the profile.
         """
         logger.debug("Bluez5 has unregistered the profile.")
-        
+
         if self.on_release:
             self.on_release()
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.PROFILE_INTERFACE,
-                         in_signature="oha{sv}", out_signature=None)
     def NewConnection(self, device, fd, fd_properties):
         """Called when a new service-level connection has been established.
         """
-        device = dbus_to_py(device)
-        fd_properties = dbus_to_py(fd_properties)
-
         logger.debug("New RFCOMM service-level connection - device={}, fd={}, "
             "fd_properties={}".format(device, fd, fd_properties))
-        fd = fd.take()
-        logger.debug("OS-level fd = {}".format(fd))
+        fd = os.dup(fd)
+        logger.debug("Duplicated fd = {}".format(fd))
 
-        # track new socket for later cleanup
+        # track new fd for later cleanup
         fds = self._fds.get(device, [])
         fds.append(fd)
         self._fds.update({device: fds})
-        
+
         if self.on_connect:
             self.on_connect(
                 device=device,
                 socket=socket.socket(fileno=fd),
                 fd_properties=fd_properties)
 
-    @dbus.service.method(dbus_interface=Bluez5Utils.PROFILE_INTERFACE,
-                         in_signature=None, out_signature="o")
     def RequestDisconnection(self, device):
         """Called when profile is disconnected from device.
         """
-        device = dbus_to_py(device)
-
         logger.debug("Profile connections to device {} are now closed.".format(
             device))
-        
+
         # need to close each socket to the device
         for fd in self._fds.pop(device, []):
             try:
                 os.close(fd)
             except Exception:
                 logger.exception("Unable to close fd {}.".format(fd))
-        
+
         if self.on_disconnect:
             self.on_disconnect(
                 device=device)
