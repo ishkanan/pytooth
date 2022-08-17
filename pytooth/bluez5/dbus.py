@@ -28,7 +28,7 @@ class Media:
             dbus_path,
             {
                 "UUID": uuid,
-                "Codec": byte(codec),
+                "Codec": codec,
                 "Capabilities": capabilities
             })
 
@@ -104,8 +104,8 @@ class MediaEndpoint:
         """Invoked by bluez5 when it is forgetting configuration because the
         transport was stopped.
         """
-        logger.debug("Bluez5 has cleared the configuration for transport "
-            "- {}".format(transport))
+        logger.debug("Bluez5 has cleared the configuration for transport - {}".format(
+            transport))
 
         if self.on_transport_state_changed:
             self.on_transport_state_changed(
@@ -118,6 +118,7 @@ class MediaEndpoint:
         """
         if self.on_release:
             self.on_release()
+
 
 class MediaTransport:
     """Encapsulates a bluez5 MediaTransport object.
@@ -175,9 +176,8 @@ class MediaTransport:
         self._fd, self._read_mtu, self._write_mtu = self._proxy.TryAcquire()
         self._fd = os.dup(self._fd) # effectively a "take()" call
         self._socket = socket.socket(fileno=self._fd)
-        logger.debug("Successfully acquired OS file descriptor - fd={}, "
-            "readMTU={}, writeMTU={}".format(
-                self._fd, self._read_mtu, self._write_mtu))
+        logger.debug("Acquired OS file descriptor - fd={}, readMTU={}, writeMTU={}".format(
+            self._fd, self._read_mtu, self._write_mtu))
         self._acquired = True
 
     def release(self):
@@ -199,6 +199,7 @@ class MediaTransport:
     def __unicode__(self):
         return "<MediaTransport: {}>".format(self._dbus_path)
 
+
 class ObexSessionFactory:
     """Uses an Obex.Client1 bluez5 object to create and destroy Obex sessions.
     This does not do any session tracking; it is up to the caller to invoke
@@ -206,8 +207,7 @@ class ObexSessionFactory:
     """
 
     def __init__(self, session_bus):
-        self._obex_client_proxy = Bluez5Utils.get_obex_client(
-            bus=session_bus)
+        self._obex_client_proxy = Bluez5Utils.get_obex_client(bus=session_bus)
         self._session_bus = session_bus
 
     def create_session(self, destination, target):
@@ -227,6 +227,7 @@ class ObexSessionFactory:
         """Closes an existing Obex session.
         """
         self._obex_client_proxy.RemoveSession(session_path)
+
 
 class PhonebookClient:
     """Wrapper that provides access to PBAP client methods. This class only
@@ -294,8 +295,7 @@ class PhonebookClient:
             logger.info("Obex session transfer from '{}' failed.".format(
                 self._destination))
             if self.on_transfer_error:
-                self.on_transfer_error(
-                    client=self)
+                self.on_transfer_error(client=self)
 
         # Bluez writes the data to a temp file so we need
         # to return all data in that file and delete it
@@ -308,13 +308,11 @@ class PhonebookClient:
                 with open(fname, 'r') as f:
                     data = f.read()
             except Exception:
-                logger.exception("Error reading transferred data in "
-                    "temporary file '{}' from '{}'.".format(
-                        fname,
-                        self._destination))
+                logger.exception("Error reading transferred data in temporary file '{}' from '{}'.".format(
+                    fname,
+                    self._destination))
                 if self.on_transfer_error:
-                    self.on_transfer_error(
-                        client=self)
+                    self.on_transfer_error(client=self)
             else:
                 if self.on_transfer_complete:
                     self.on_transfer_complete(
@@ -324,16 +322,14 @@ class PhonebookClient:
             # delete the temporary file
             try:
                 os.remove(fname)
-                logger.debug("Temporary destination file '{}' for transfer from"
-                    " '{}' has been deleted.".format(
-                        fname,
-                        self._destination))
+                logger.debug("Temp destination file '{}' for transfer from '{}' has been deleted.".format(
+                    fname,
+                    self._destination))
             except Exception as e:
-                logger.warning("Error deleting temporary destination file '{}' "
-                    "for transfer from '{}' - {}".format(
-                        fname,
-                        self._destination,
-                        e))
+                logger.warning("Error deleting temp destination file '{}' for transfer from '{}' - {}".format(
+                    fname,
+                    self._destination,
+                    e))
 
     def select(self, location, name):
         """Selects a phonebook for further operations. Location can be ['int',
@@ -382,6 +378,7 @@ class PhonebookClient:
             self._transfer = None
             self._transfer_file = None
 
+
 class Profile:
     """Encapsulates a Profile bluez5 object.
     """
@@ -403,7 +400,7 @@ class Profile:
                 <method name='NewConnection'>
                     <arg type='o' name='device' direction='in'/>
                     <arg type='h' name='fd' direction='in'/>
-                    <arg type='a{sv}' name='fd_properties' direction='in'/>
+                    <arg type='a{{sv}}' name='fd_properties' direction='in'/>
                 </method>
                 <method name='RequestDisconnection'>
                     <arg type='o' name='' direction='out'/>
@@ -423,8 +420,8 @@ class Profile:
     def NewConnection(self, device, fd, fd_properties):
         """Called when a new service-level connection has been established.
         """
-        logger.debug("New RFCOMM service-level connection - device={}, fd={}, "
-            "fd_properties={}".format(device, fd, fd_properties))
+        logger.debug("New RFCOMM service-level connection - device={}, fd={}, fd_properties={}".format(
+            device, fd, fd_properties))
         fd = os.dup(fd)
         logger.debug("Duplicated fd = {}".format(fd))
 
@@ -453,5 +450,4 @@ class Profile:
                 logger.exception("Unable to close fd {}.".format(fd))
 
         if self.on_disconnect:
-            self.on_disconnect(
-                device=device)
+            self.on_disconnect(device=device)

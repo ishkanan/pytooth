@@ -15,6 +15,12 @@
                 "level": "DEBUG",
                 "formatter": "simple",
                 "stream": "ext://sys.stdout"
+            },
+            "file": {
+                "class": "logging.FileHandler",
+                "level": "DEBUG",
+                "formatter": "simple",
+                "filename": "output.log"
             }
         },
 
@@ -32,8 +38,9 @@
         }
     },
 
-    "profiles": ["hfp"],
+    "profiles": ["a2dp"],
     "preferredaddress": "",
-    "retryinterval": 15
-
+    "retryinterval": 15,
+    "alsasink": "default",
+    "alsasource": "default"
 }

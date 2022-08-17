@@ -18,6 +18,7 @@ def get_config(filename):
     except Exception as e:
         raise ConfigurationError(e)
 
+
 def validate_config(config):
     """Validates the supplied configuration. Validation does not include checks
     for valid values parses the data against a defined configuration and
@@ -40,7 +41,7 @@ def validate_config(config):
             raise ValueError()
     except Exception:
         raise ConfigurationError("'retryinterval' must be at least 5.")
-    
+
     # List of profiles
     arg = config.get("profiles", [])
     if not isinstance(arg, list):

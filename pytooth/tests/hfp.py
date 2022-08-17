@@ -25,6 +25,7 @@ class TestApplication:
         self._source = None
         self._socket_pump = RealTimeSocketPump()
         self._oncall = False
+        self._config = config
 
         # profile setup
         hfp = HandsFreeProfile(
@@ -39,7 +40,7 @@ class TestApplication:
         hfp.on_device_connected_changed = self._device_connected_changed
         hfp.on_profile_status_changed = self._profile_status_changed
         self.hfp = hfp
-    
+
     def start(self):
         # let's go
         self.hfp.start()
@@ -103,8 +104,7 @@ class TestApplication:
         really only occurs if a serious issue with the Bluetooth stack is
         encountered by the OS.
         """
-        logger.info("HFP profile is {}avaiable.".format(
-            "" if avaiable else "not "))
+        logger.info("HFP profile is {}avaiable.".format("" if available else "not "))
 
     def _phone_connected_changed(self, connected):
         """Fired when a connected device has completed initial handshake. The
@@ -114,11 +114,10 @@ class TestApplication:
             "established" if connected else "released"))
 
         if connected:
-            logger.info("Phone properties: Codec={}, Features={}, Multi-call={}"
-                "".format(
-                    self.phone.codec,
-                    self.phone.features,
-                    self.phone.multicall))
+            logger.info("Phone properties: Codec={}, Features={}, Multi-call={}".format(
+                self.phone.codec,
+                self.phone.features,
+                self.phone.multicall))
 
     def _phone_event(self, name, **kwargs):
         """An (a)synchronous phone event occurred.
@@ -133,14 +132,14 @@ class TestApplication:
 
         self._sink = AlsaAudioSink(
             socket_pump=self._socket_pump,
-            device_name="default")
+            device_name=self._config["alsasink"])
         self._sink.start()
         logger.info("Built new AlsaAudioSink.")
 
         self._source = AlsaAudioSource(
             socket_pump=self._socket_pump,
             mtu=mtu,
-            device_name="default")
+            device_name=self._config["alsasource"])
         self._source.start()
         logger.info("Built new AlsaAudioSource.")
 

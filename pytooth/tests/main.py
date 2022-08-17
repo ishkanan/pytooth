@@ -7,7 +7,7 @@ import logging.config
 import signal
 import sys
 
-from tornado.ioloop import IOLoop, PeriodicCallback
+from tornado.ioloop import PeriodicCallback
 
 from pytooth.gi.loops import GtkMainLoop
 import pytooth.tests.config
@@ -16,9 +16,11 @@ from pytooth.tests.errors import ConfigurationError
 
 _closing = False
 
+
 def signal_handler(signum, frame):
     global _closing
     _closing = True
+
 
 def try_exit(gtkloop, apps):
     global _closing
@@ -32,6 +34,7 @@ def try_exit(gtkloop, apps):
                     app))
         gtkloop.stop()
         logging.info("Gracefully stopped. Have a nice day.")
+
 
 def main():
     args = sys.argv
@@ -61,14 +64,14 @@ def main():
             logging.info("Applied logging configuration.")
         except Exception as e:
             print("WARNING! Could not parse logging configuration, logging may "
-                "not be configured properly - {}".format(e))
+                  "not be configured properly - {}".format(e))
 
     # make loop before connecting to DBus
-    gtkloop = GtkMainLoop(io_loop=IOLoop.instance())
-    
+    gtkloop = GtkMainLoop()
+
     # create common objects
     system_bus, session_bus = pytooth.init()
-    
+
     # load profile test apps
     apps = []
     for profile in config["profiles"]:
@@ -89,7 +92,7 @@ def main():
     if len(apps) == 0:
         logging.error("No valid profiles loaded - exiting.")
         return
-        
+
     # run the test apps
     logging.info("Running...")
     signal.signal(signal.SIGINT, signal_handler)

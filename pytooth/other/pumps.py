@@ -32,7 +32,7 @@ class RealTimeSocketPump:
     @property
     def started(self):
         return self._started
-        
+
     def start(self, socket, read_mtu, write_mtu, nodata_wait_msecs):
         """Starts the pump. If already started, this does nothing.
         """
@@ -102,62 +102,54 @@ class RealTimeSocketPump:
         ep.register(self._socket, select.EPOLLIN | select.EPOLLOUT)
         fatal = False
 
-        # 1) check if socket ready for read/write
-        # 2) sleep if no read/write was available
-        # 3) perform read if applicable
-        # 4) perform write if applicable
         while self._started and not fatal:
 
-            # step 1
+            # check socket condition
             can_read = False
             can_write = False
             try:
-                result = ep.poll(0.0)
-                can_read = (result[0][1] & select.EPOLLIN) == select.EPOLLIN
-                can_write = (result[0][1] & select.EPOLLOUT) == select.EPOLLOUT
+                result = ep.poll(0.0)[0][1]
+                can_read = (result & select.EPOLLIN) == select.EPOLLIN
+                can_write = (result & select.EPOLLOUT) == select.EPOLLOUT
+                fatal = (result & select.EPOLLERR) == select.EPOLLERR
+                fatal |= (result & select.EPOLLHUP) == select.EPOLLHUP
+                fatal |= (result & select.EPOLLRDHUP) == select.EPOLLRDHUP
             except Exception as e:
-                logger.error("EPOLL error in pump worker thread - {}".format(e))
+                logger.error("EPOLL error in socket pump worker thread - {}".format(e))
                 if self.on_fatal_error:
                     self.ioloop.add_callback(partial(
                         self.on_fatal_error,
                         error=e))
                 fatal = True
+
+            if fatal:
                 continue
 
-            # step 2
             if not can_read and not can_write:
                 sleep(nodata_delay)
                 continue
 
-            # step 3
+            # read pending data
             if can_read:
                 try:
-                    data = self._socket.recv(
-                        self._read_mtu,
-                        socket.MSG_WAITALL)
+                    data = self._socket.recv(self._read_mtu, socket.MSG_WAITALL)
                     if self.on_data_ready:
                         self.ioloop.add_callback(partial(
                             self.on_data_ready,
                             data=data))
                 except Exception as e:
-                    logger.error("Pump socket read error - {}".format(e))
+                    logger.error("Pump encountered a socket read error - {}".format(e))
                     fatal = True
 
             # step 4
             if can_write and self._send_buffer.length >= self._write_mtu:
                 try:
-                    self._socket.send(
-                        self._send_buffer.get(self._write_mtu))
+                    self._socket.send(self._send_buffer.get(self._write_mtu))
                 except Exception as e:
-                    logger.error("Pump socket write error - {}".format(e))
+                    logger.error("Pump encountered a socket write error - {}".format(e))
                     fatal = True
-            
-        #ep.unregister(self._socket)
+
+        # ep.unregister(self._socket)
         ep.close()
 
-        if fatal:
-            logger.debug(
-                "Socket pump worker thread has stopped due to a fatal error.")
-        else:
-            logger.debug(
-                "Socket pump worker thread has gracefully stopped.")
+        logger.debug("Socket pump worker thread has stopped.")

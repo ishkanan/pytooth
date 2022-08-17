@@ -11,9 +11,7 @@ from tornado.ioloop import IOLoop
 
 from pytooth.bluez5.dbus import Profile
 from pytooth.bluez5.helpers import Bluez5Utils
-from pytooth.hfp.constants import HFP_PROFILE_UUID, \
-                                    HFP_DBUS_PROFILE_ENDPOINT, \
-                                    HF_SUPPORTED_FEATURES
+from pytooth.hfp.constants import HFP_DBUS_PROFILE_ENDPOINT, HF_SUPPORTED_FEATURES
 from pytooth.hfp.helpers import SerialPortConnection
 from pytooth.hfp.proxy import RemotePhone
 
@@ -137,6 +135,7 @@ class ProfileManager:
             if self.on_unexpected_stop:
                 self.on_unexpected_stop()
 
+
 class MediaManager:
     """Manages SCO audio connections with bluez5. When a connection is
     received, stop() is internally called. The caller must call start() again
@@ -146,7 +145,7 @@ class MediaManager:
 
     def __init__(self):
         # adapter to socket map
-        self._connections = {} # adapter: {socket}
+        self._connections = {}  # adapter: {socket}
 
         self.io_loop = IOLoop.instance()
 
@@ -176,15 +175,13 @@ class MediaManager:
                 "status": "listening"
             }
         except Exception as e:
-            logger.exception("Failed to make SCO listen socket on adapter {}"
-                "".format(adapter))
+            logger.exception("Failed to make SCO listen socket on adapter {}".format(adapter))
             if self.on_media_setup_error:
                 self.on_media_setup_error(
                     adapter=adapter,
                     error="Failed to make SCO listen socket - {}".format(e))
             return
-        logger.debug("Listening for SCO connection on adapter {}".format(
-            adapter))
+        logger.debug("Listening for SCO connection on adapter {}".format(adapter))
 
     def stop(self, adapter):
         """Stops listening or closes media connection via specified adapter. If
@@ -226,19 +223,17 @@ class MediaManager:
             sock = self._connections[adapter]["socket"]
             ep = self._connections[adapter].get("epoll")
             if ep:
-                #ep.unregister(sock)
+                # ep.unregister(sock)
                 ep.close()
             if self._connections[adapter]["status"] == "listening":
                 self.io_loop.remove_handler(sock.fileno())
             sock.close()
-            logger.debug("Successfully closed listening SCO socket on adapter "
-                "{}".format(adapter))
+            logger.debug("Successfully closed listening SCO socket on adapter {}".format(adapter))
         except KeyError:
             logger.warning("Ignored SCO close attempt for adapter {} as it is "
-                "not being tracked.".format(adapter))
+                           "not being tracked.".format(adapter))
         except Exception:
-            logger.exception("SCO socket close error for adapter {}".format(
-                adapter))
+            logger.exception("SCO socket close error for adapter {}".format(adapter))
 
     def _sco_connection_ready(self, fd, events, adapter):
         """Callback for a new SCO connection.
@@ -248,21 +243,19 @@ class MediaManager:
         try:
             (sock, peer) = self._connections[adapter]["socket"].accept()
         except Exception as e:
-            logger.exception("SCO socket accept error for adapter {}".format(
-                adapter))
+            logger.exception("SCO socket accept error for adapter {}".format(adapter))
             if self.on_media_setup_error:
                 self.on_media_setup_error(
                     adapter=adapter,
                     error="SCO socket accept error - {}".format(e))
             return
-        
+
         # get SCO MTU
         try:
             mtu = sock.getsockopt(17, 1)
             logger.debug("SCO MTU for adapter {} = {}".format(adapter, mtu))
         except Exception as e:
-            logger.exception("SCO MTU retrieve error for adapter {}".format(
-                adapter))
+            logger.exception("SCO MTU retrieve error for adapter {}".format(adapter))
             sock.close()
             if self.on_media_setup_error:
                 self.on_media_setup_error(
@@ -276,16 +269,15 @@ class MediaManager:
             mode = sock.getsockopt(274, 11)
             logger.debug("CVSD sample format ID for adapter {} = {}".format(
                 adapter, mode))
-            if mode != 96: # 16-bit signed LE samples
+            if mode != 96:  # 16-bit signed LE samples
                 if self.on_media_setup_error:
                     self.on_media_setup_error(
                         adapter=adapter,
                         error="Unsupported CVSD sample format - {}"
-                            ", 16-bit signed LE required.".format(mode))
+                              ", 16-bit signed LE required.".format(mode))
                 return
         except Exception as e:
-            logger.exception("CVSD sample format ID retrieve error for adapter "
-                "{}".format(adapter))
+            logger.exception("CVSD sample format ID retrieve error for adapter {}".format(adapter))
             sock.close()
             if self.on_media_setup_error:
                 self.on_media_setup_error(
@@ -337,24 +329,20 @@ class MediaManager:
             closed = len(result) != 0
         except Exception as e:
             # assuming any error with the socket is a close
-            logger.error("EPOLL error in _sco_close_check() - {}".format(
-                e))
+            logger.error("EPOLL error in _sco_close_check() - {}".format(e))
             closed = True
 
         if closed:
-            logger.info("Established SCO socket closed for adapter {}.".format(
-                adapter))
-            # stop tracking and alert
+            logger.info("An established SCO socket has closed on adapter {}.".format(adapter))
             self.stop(adapter=adapter)
             if self.on_media_connected_changed:
                 self.on_media_connected_changed(
                     adapter=adapter,
                     connected=False,
-                    socket=None,
+                    socket=sock,
                     mtu=None,
                     peer=None)
         else:
-            # keep checking
             self.io_loop.call_later(
                 delay=1,
                 callback=self._sco_close_check,

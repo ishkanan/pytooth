@@ -1,7 +1,6 @@
 
 import logging
 
-from pytooth.bluez5.helpers import Bluez5Utils
 from pytooth.errors import InvalidOperationError
 from pytooth.pbap.managers import ClientManager, ProfileManager
 
@@ -12,8 +11,7 @@ class PhoneBookAccessProfile:
     """Top-level class for PBAP control via Bluez5 stack.
     """
 
-    def __init__(self, session_bus, system_bus, adapter_class, io_loop, \
-        *args, **kwargs):
+    def __init__(self, session_bus, system_bus, adapter_class, io_loop, *args, **kwargs):
         self._session_bus = session_bus
         self._system_bus = system_bus
 

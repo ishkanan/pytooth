@@ -75,7 +75,7 @@ class RemotePhone:
         if self._connection is not None:
             return self._connection.peer
         return None
-        
+
     def answer(self):
         """Request to answer an incoming call. This function raises an
         InvalidOperationError if not started or handshake is pending. Otherwise
@@ -153,7 +153,7 @@ class RemotePhone:
     def _connection_error(self, error):
         """Called when AG reports that an error occurred.
         """
-        self._raise_event(name="error", error=data)
+        self._raise_event(name="error", error=error)
 
     def _connection_message(self, code, data):
         """Called when AG sends us a non-error message.
@@ -189,7 +189,6 @@ class RemotePhone:
         logger.debug("HFP handshake is starting...")
 
         try:
-
             # features
             self._ag_features = yield self._send_and_wait(
                 "AT+BRSF={}".format(HF_BRSF_FEATURES),
@@ -218,7 +217,7 @@ class RemotePhone:
                     "AT+CHLD=?", "CHLD")
                 # call waiting alerts
                 yield self._send_and_wait("AT+CCWA=1", "OK")
-                
+
             # extended error handling
             yield self._send_and_wait("AT+CMEE=1", "OK")
 
@@ -228,8 +227,7 @@ class RemotePhone:
             # network operator format
             yield self._send_and_wait("AT+COPS=3,0", "OK")
             self._connection.send_message("AT+COPS?")
-
-        except TimeoutError as e:
+        except TimeoutError:
             logger.exception("HFP handshake error.")
             if self._connection:
                 self._connection.close()

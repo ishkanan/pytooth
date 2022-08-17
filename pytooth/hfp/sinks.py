@@ -1,11 +1,8 @@
 
-from datetime import datetime, timedelta
 import logging
+import math
 
 import alsaaudio
-from tornado.ioloop import IOLoop
-
-from pytooth.other.buffers import ThreadSafeMemoryBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +17,11 @@ class AlsaAudioSink:
         self._socket_pump = socket_pump
         self._socket_pump.on_data_ready = self._data_ready
         self._socket_pump.on_fatal_error = self._fatal_pump_error
-        
+
         # events
         self.on_fatal_error = None
 
         # other
-        self.ioloop = IOLoop.current()
         self._device_name = device_name
         self._started = False
 
@@ -37,10 +33,16 @@ class AlsaAudioSink:
 
         # open the ALSA device
         # note: CVSD support only
-        self._device = alsaaudio.PCM(alsaaudio.PCM_PLAYBACK, device=self._device_name)
-        self._device.setchannels(1)
-        self._device.setrate(8000)
-        self._device.setformat(alsaaudio.PCM_FORMAT_S16_LE)
+        self._device = alsaaudio.PCM(
+            type=alsaaudio.PCM_PLAYBACK,
+            mode=alsaaudio.PCM_NORMAL,
+            rate=8000,
+            channels=1,
+            format=alsaaudio.PCM_FORMAT_S16_LE,
+            periodsize=16,
+            device=self._device_name)
+        self._frame_size = 2  # channels * sample size
+        self._remainder = b''
         self._started = True
 
     def stop(self):
@@ -50,7 +52,7 @@ class AlsaAudioSink:
             return
 
         self._started = False
-        
+
         # cleanup ALSA device
         if not self._device:
             self._device.close()
@@ -67,6 +69,11 @@ class AlsaAudioSink:
                 len(data)))
             return
 
+        # data = self._remainder + data
+        # periods = math.floor(len(data)/self._frame_size)
+        # periods = min(periods, 16)
+        # self._device.write(data[0:periods*self._frame_size])
+        # self._remainder = data[periods*self._frame_size:]
         self._device.write(data)
 
     def _fatal_pump_error(self, error):

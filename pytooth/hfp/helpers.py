@@ -44,7 +44,7 @@ class CallStateMachine:
 
             # first/second outbound call setup (made by HF)
             self._calls.append({
-                "status": "initiating", # AG has to confirm it is ringing
+                "status": "initiating",  # AG has to confirm it is ringing
                 "num": data,
                 "dir": "outbound"})
             update = True
@@ -98,7 +98,7 @@ class CallStateMachine:
 
             if callheld == "1":
                 # 1 x active and 1 x held call (swapped hold status)
-                for i, call in iterate(self._calls):
+                for i, call in enumerate(self._calls):
                     if call["status"] == "hold":
                         held_i = i
                     if call["status"] == "active":
@@ -118,7 +118,7 @@ class CallStateMachine:
                 # single call became active
                 self._calls[0]["status"] = "active"
                 update = True
-                
+
             if call == "0":
                 # no more calls on the AG
                 self._calls.clear()
@@ -138,13 +138,14 @@ class CallStateMachine:
 
         return update
 
+
 class SerialPortConnection:
     """Models a serial connection to a remote device over a Bluetooth RFCOMM
     link. Provides send and receive functionality (with proper parsing), and
     can track replies to certain requests.
     """
 
-    CHLD_MAP ={
+    CHLD_MAP = {
         0: "ReleaseAllHeldOrUDUB",
         1: "ReleaseAllActive,AcceptOther",
         2: "HoldAllActive,AcceptOther",
@@ -190,7 +191,7 @@ class SerialPortConnection:
         #   "handle": <timeout handle>]
         self._reply_q = defaultdict(list)
         self._socket = socket
-        
+
         self.on_close = None
         self.on_error = None
         self.on_message = None
@@ -228,11 +229,11 @@ class SerialPortConnection:
             data = self._remainder + data
             logger.debug("Appended left-over bytes - {}".format(
                 self._remainder))
-        
+
         while True:
-            # all AG -> HF messages are <cr><lf> delimited
+            # all AG -> HF messages are \r\n delimited
             try:
-                msg, data = data.split(b'\x0d\x0a', 1)
+                msg, data = data.split(b'\r\n', 1)
             except ValueError:
                 self._remainder = data
                 return
@@ -242,7 +243,7 @@ class SerialPortConnection:
                 msg = msg.decode('ascii', errors='strict')
             except UnicodeDecodeError as e:
                 logger.warning("ASCII decode error, going to ignore dodgy "
-                    "characters - {}".format(e))
+                               "characters - {}".format(e))
                 msg = msg.decode('ascii', errors='ignore')
 
             try:
@@ -250,7 +251,7 @@ class SerialPortConnection:
                     self._on_message(msg)
             except Exception:
                 logger.exception("Message handler threw an unhandled "
-                    "exception with data \"{}\"".format(msg))
+                                 "exception with data \"{}\"".format(msg))
 
             if data == b'':
                 self._remainder = b''
@@ -332,16 +333,15 @@ class SerialPortConnection:
             try:
                 ret = handler(params=params.strip())
             except Exception as e:
-                logger.error("Handler threw unhandled exception - {}".format(e))
+                logger.error("{} threw an unhandled exception - {}".format(func_name, e))
                 if qentry:
                     qentry["future"].set_exception(e)
                 return
             if qentry:
                 qentry["future"].set_result(ret)
-            #else:
             if self.on_message:
                 self.on_message(code=code, data=ret)
-                    
+
     def _handle_brsf(self, params):
         """Supported features of the AG.
         """
@@ -387,10 +387,9 @@ class SerialPortConnection:
         # ("call",(0,1)),("callsetup",(0-3)),("service",(0-1)),("signal",(0-5)),
         # ("roam",(0,1)),("battchg",(0-5)),("callheld",(0-2))
         if "(" in params:
-            params = ast.literal_eval(params)
-            self._indmap = dict([
-                (i, name) for i, (name, _) in enumerate(params)])
-            return [name for name, _ in params]
+            params = [p.split('"')[0] for p in params.split('("') if p != '']
+            self._indmap = {i: name for i, name in enumerate(params)}
+            return params
 
         # ...or initial indicator values
         # 0,0,1,4,0,3,0
@@ -418,7 +417,7 @@ class SerialPortConnection:
             "mode": params[0],
             "name": params[2]
         }
-    
+
     def _handle_ccwa(self, params):
         """Contains phone number of calling party in a call-waiting scenario
         (if CLI enabled).
@@ -439,12 +438,12 @@ class SerialPortConnection:
             logger.debug("Sending \"{}\" over SPC.".format(message))
             data = message+"\x0a"
             self._stream.write(data.encode("ascii"))
-        except Exception as e:
+        except Exception:
             logger.exception("Error sending \"{}\" over SPC.".format(
                 message))
             raise ConnectionError("Error sending \"{}\" over SPC.".format(
                 message))
-        
+
         # async tracking?
         if async_reply_code:
             queue = self._reply_q[async_reply_code]

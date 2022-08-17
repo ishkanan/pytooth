@@ -1,8 +1,6 @@
 
 import logging
 
-import pydbus
-
 logger = logging.getLogger(__name__)
 
 
