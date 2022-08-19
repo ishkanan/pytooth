@@ -1,7 +1,7 @@
-gobject==0.1.0
-pyalsaaudio==0.8.4
+pycairo
+pyalsaaudio==0.9.2
 pydbus
-pygobject==3.36.0
-setproctitle==1.1.10
-tornado==6.0.3
-wheel==0.31.1
+pygobject==3.42.2
+setproctitle
+tornado==6.2
+wheel

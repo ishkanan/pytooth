@@ -23,15 +23,15 @@ print("packages_dir = {}\nsrc_dir = {}".format(packages_dir, src_dir))
 # compile and install sources
 # NOTE: cannot use setup.py for these since cannot pass -prefix and -exec-prefix
 sources = [
-    ("sbc", "1.2.0"),
+    ("sbc", "2.0"),
 ]
 for lib in sources:
     print("Installing {}-{} library from source ...".format(lib[0], lib[1]))
     os.system(
         "cd '{srcdir}'; "
-        "tar xf {libname}-{libver}.tar.gz; "
+        "tar xf {libname}-{libver}.tar.xz; "
         "cd {libname}-{libver}; "
-        "./configure -prefix=$VIRTUAL_ENV -exec-prefix=$VIRTUAL_ENV >/dev/null; "
+        "./configure --prefix=$VIRTUAL_ENV --exec-prefix=$VIRTUAL_ENV >/dev/null; "
         "make >/dev/null; "
         "sudo make install >/dev/null; "
         "if [ -f setup.py ]; then python setup.py install; fi; ".format(
@@ -72,3 +72,4 @@ for lib in sources:
             srcdir=src_dir,
             libname=lib[0],
             libver=lib[1]))
+
