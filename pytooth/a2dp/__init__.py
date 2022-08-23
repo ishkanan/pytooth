@@ -26,15 +26,13 @@ class AdvancedAudioProfile:
         self._adapter = adapter
 
         # profile plumber
-        pmgr = ProfileManager(
-            system_bus=system_bus)
+        pmgr = ProfileManager(system_bus=system_bus)
         pmgr.on_connected_changed = self._profile_connected_changed
         pmgr.on_unexpected_stop = self._profile_unexpected_stop
         self._profilemgr = pmgr
 
         # media plumber
-        mmgr = MediaManager(
-            system_bus=self._system_bus)
+        mmgr = MediaManager(system_bus=self._system_bus)
         mmgr.on_media_setup_error = self._media_setup_error
         mmgr.on_stream_state_changed = self._media_stream_state_changed
         mmgr.on_track_changed = self._media_track_changed

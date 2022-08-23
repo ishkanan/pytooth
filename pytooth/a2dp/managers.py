@@ -115,6 +115,7 @@ class ProfileManager:
             if self.on_unexpected_stop:
                 self.on_unexpected_stop()
 
+
 class MediaManager:
     """Manages media object interactions with bluez5. Can handle media
     connections via multiple adapters.
@@ -131,14 +132,6 @@ class MediaManager:
         self.on_stream_state_changed = None
         self.on_track_changed = None
         self.on_unexpected_release = None
-
-        # subscribe to property changes
-        # system_bus.add_signal_receiver(
-        #     handler_function=self._player_properties_changed,
-        #     signal_name="PropertiesChanged",
-        #     dbus_interface=Bluez5Utils.PROPERTIES_INTERFACE,
-        #     arg0=Bluez5Utils.MEDIA_PLAYER_INTERFACE,
-        #     path_keyword="path")
 
     def start(self, adapter):
         """Starts a media connection via specified adapter. If already started,
@@ -175,20 +168,9 @@ class MediaManager:
     def _register(self, adapter):
         """Registers a media endpoint on DBus.
         """
-        # get Media proxy
-        logger.debug("Fetching Media proxy...")
-        media = Media(
-            system_bus=self._system_bus,
-            adapter_path=adapter.path)
-
-        # build endpoint and register on DBus
         logger.debug("Building media endpoint...")
-        dbus_path = "{}_{}".format(
-            A2DP_DBUS_MEDIA_ENDPOINT,
-            MediaManager._endpoint_id)
         endpoint = MediaEndpoint(
             system_bus=self._system_bus,
-            dbus_path=dbus_path,
             configuration=SBC_CONFIGURATION)
         endpoint.on_release = partial(
             self._endpoint_release,
@@ -199,22 +181,27 @@ class MediaManager:
         endpoint.on_transport_state_changed = partial(
             self._endpoint_transport_state_changed,
             adapter)
-        logger.debug("Registered media endpoint on DBus.")
 
-        # register endpoint with bluez5
-        logger.debug("Registering media capabilities with bluez...")
+        logger.debug("Fetching Media proxy...")
+        media = Media(
+            system_bus=self._system_bus,
+            adapter_path=adapter.path)
+
+        logger.debug("Registering media endpoint and capabilities...")
+        interface_path = "{}_{}".format(
+            A2DP_DBUS_MEDIA_ENDPOINT,
+            MediaManager._endpoint_id)
         try:
             media.register(
-                dbus_path=dbus_path,
+                endpoint_path=interface_path,
                 uuid=A2DP_SINK_UUID,
                 codec=SBC_CODEC,
                 capabilities=SBC_CAPABILITIES)
         except Exception:
-            logger.exception("Error registering capabilities.")
+            logger.exception("Error registering endpoint and capabilities.")
             raise
 
-        # all good!
-        endpoint.path = dbus_path
+        endpoint.path = interface_path
         MediaManager._endpoint_id = MediaManager._endpoint_id + 1
         logger.debug("Registered and ready.")
         return media, endpoint
@@ -249,8 +236,7 @@ class MediaManager:
         # report back track update
         if "Track" in props:
             if self.on_track_changed:
-                self.on_track_changed(
-                    track=props["Track"])
+                self.on_track_changed(track=props["Track"])
 
         # streaming status update
         if "Status" in props:
