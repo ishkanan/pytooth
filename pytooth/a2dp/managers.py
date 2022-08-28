@@ -5,14 +5,15 @@ from functools import partial
 import logging
 
 from pytooth.a2dp.constants import A2DP_PROFILE_UUID, \
-                                    A2DP_SINK_UUID, \
-                                    A2DP_DBUS_PROFILE_ENDPOINT, \
-                                    A2DP_DBUS_MEDIA_ENDPOINT, \
-                                    SBC_CAPABILITIES, \
-                                    SBC_CODEC, \
-                                    SBC_CONFIGURATION
-from pytooth.bluez5.dbus import Media, MediaEndpoint, Profile
+    A2DP_SINK_UUID, \
+    A2DP_DBUS_PROFILE_ENDPOINT, \
+    A2DP_DBUS_MEDIA_ENDPOINT, \
+    SBC_CAPABILITIES, \
+    SBC_CODEC, \
+    SBC_CONFIGURATION
 from pytooth.bluez5.helpers import Bluez5Utils
+from pytooth.bluez5.media import Media, MediaEndpoint
+from pytooth.bluez5.profile import Profile
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ class MediaManager:
 
     def __init__(self, system_bus):
         # handle connections via multiple adapters
-        self._connections = {} # adapter: {media, endpoint}
+        self._connections = {}  # adapter: {media, endpoint}
         self._system_bus = system_bus
 
         # public events
@@ -253,8 +254,7 @@ class MediaManager:
 
         # transport could be released by bluez which is weird but possible
         if not transport:
-            logger.warning("Bluez5 released the transport, will not attempt "
-                "to acquire it.")
+            logger.warning("Bluez5 released the transport, will not attempt to acquire it.")
         else:
             # acquire the transport to begin receiving data
             # note: transport release is either manual or implicit when

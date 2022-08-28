@@ -32,7 +32,7 @@ tornado | Asynchronous web/networking framework
 wheel | Required for project build
 
 ## Other
-Pytooth interfaces with a C-based SBC codec library called [libsbc](https://www.kernel.org/pub/linux/bluetooth/sbc-1.2.tar.xz) directly via Python **ctypes**. This allows for fast and reliable decoder code when using A2DP. The source code comes bundled with Pytooth and is built during installation.
+Pytooth interfaces with a C-based SBC codec library called [libsbc](https://www.kernel.org/pub/linux/bluetooth/sbc-2.0.tar.xz) directly via Python **ctypes**. This allows for fast and reliable decoder code when using A2DP. The source code comes bundled with Pytooth and is built during installation.
 
 # Installation
 This section details how to configure the various depedency systems and install the Pytooth library. There are a few installation use cases:
@@ -50,7 +50,12 @@ Enable Bluez5 custom commands by appending **--compat** to the ```ExecStart``` s
 ExecStart=/usr/lib/bluetooth/bluetoothd --compat
 ```
 
-Restart Bluetooth with ```systemctl restart bluetooth.service```.
+Reload the unit config and restart Bluetooth:
+
+```
+$ systemctl daemon-reload
+$ systemctl restart bluetooth.service
+```
 
 ## DBus
 Allow Pytooth to send DBus messages and claim ownership of the **ishkanan.pytooth** namespace by changing:
@@ -72,10 +77,10 @@ Decide which user will be running the application/test apps and add that user to
 Existing user sessions will need to be restarted for the membership changes to take effect.
 
 ## Virtual Environment (Python 3)
-It is recommended practice to run Python applications in Python [Virtual Environments](https://virtualenv.pypa.io/en/stable). The pros and cons for doing so are aplenty on the internet, and are beyond the scope of this documentation. The installer assumes it is running in a virtual environment. System-level installation of the library is currently untested.
+It is recommended practice to run Python applications in Python [Virtual Environments](https://virtualenv.pypa.io/en/stable). The installer assumes it is running in a virtual environment. System-level installation of the library is currently untested.
 
 ## Pytooth Library
-The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) however it is not currently listed on [PyPI](https://pypi.python.org/) so cannot be installed with **pip**. The file `setup.py` in the root folder is the installer entry point. The installer builds and installs all source gzips located in the **packages/src** folder (**libsbc**). Some of the commands require root privileges so the installer will prompt for elevation.
+The final step is to install the library itself. This will differ based on the installation use case. The installer is based on Python [setuptools](https://setuptools.readthedocs.io/) as it is not listed on [PyPI](https://pypi.python.org/) and cannot be installed with **pip**. The file `setup.py` in the root folder is the installer entry point. The installer builds and installs all source code located in the **packages/src** folder so some of the commands require root privileges and will prompt for elevation.
 
 ### Install: Integration into larger project
 For integration into a larger project, ensure that the project's deployment processes invoke the `setup.py` script with the **install** command, for example:

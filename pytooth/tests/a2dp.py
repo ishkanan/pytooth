@@ -4,7 +4,6 @@ import logging
 
 from tornado.ioloop import IOLoop
 
-import pytooth
 from pytooth.a2dp import AdvancedAudioProfile
 from pytooth.a2dp.sbc import SBCDecoder
 from pytooth.a2dp.sinks import AlsaAudioSink
@@ -78,7 +77,7 @@ class TestApplication:
 
     def _audio_track_changed(self, track):
         logger.info("Track changed - {}".format(track))
-        
+
     def _device_connected_changed(self, device, connected):
         """Fired when a device connects but has not completed initial handshake
         with the protocol.
@@ -91,8 +90,7 @@ class TestApplication:
         really only occurs if a serious issue with the Bluetooth stack is
         encountered by the OS.
         """
-        logger.info("A2DP profile is {}avaiable.".format(
-            "" if avaiable else "not "))
+        logger.info("A2DP profile is {}avaiable.".format("" if available else "not "))
 
     def _start_audio(self, transport=None):
         # streaming has started, obviously

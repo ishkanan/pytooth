@@ -24,8 +24,9 @@ class sbc_t(ct.Structure):
         ("priv", ct.c_void_p),
         ("priv_alloc_base", ct.c_void_p)]
 
+
 SBC_MIN_FRAME_LEN = 11
-    
+
 SAMPLE_RATES = {
     0: 16000,
     1: 32000,
@@ -54,6 +55,7 @@ SAMPLE_SIZES = {
     3: 16
 }
 
+
 class SBCDecoder:
     """An asynchronous SBC decoder class. Requires libsbc. This is capable of
     stripping RTP headers (for A2DP and other profiles).
@@ -78,7 +80,7 @@ class SBCDecoder:
         """
         if self._started:
             return
-        
+
         # setup
         self._read_mtu = read_mtu
         self._sbc = sbc_t()
@@ -108,7 +110,7 @@ class SBCDecoder:
         if self._sbc_populated:
             return CHANNELS.get(self._sbc.mode)
         return None
-    
+
     @property
     def channel_mode(self):
         if self._sbc_populated:
@@ -153,12 +155,11 @@ class SBCDecoder:
         buf = ct.create_string_buffer(bufsize)
         self._libsbc.sbc_init(ct.byref(self._sbc), 0)
         prev_seq = 0
-        to_decode = ct.c_size_t() # optimisation
-        to_write = ct.c_size_t() # optimisation
-        written = ct.c_size_t() # optimisation
+        to_decode = ct.c_size_t()  # optimisation
+        to_write = ct.c_size_t()   # optimisation
+        written = ct.c_size_t()    # optimisation
 
         # loop until stopped
-        leftover_sbc = b''
         while self._started:
 
             # read more RTP data in non-blocking mode
@@ -171,9 +172,9 @@ class SBCDecoder:
             except Exception as e:
                 logger.error("Socket read error - {}".format(e))
             if len(packet) == 0:
-                sleep(0.1) # CPU busy safety
+                sleep(0.1)  # CPU busy safety
                 continue
-            
+
             # out-of-order packet?
             # note: we need to allow for 16-bit reset
             seq = packet[3] + (packet[2] << 8)
@@ -195,7 +196,7 @@ class SBCDecoder:
             data = packet[13:]
             buf.value = data
             readlen = len(data)
-                
+
             # create decode buffer if we haven't already
             if not self._sbc_populated:
                 try:
@@ -203,16 +204,15 @@ class SBCDecoder:
                 except Exception as e:
                     logger.error(e)
                     continue
-                logger.debug("sbc: freq={},blks={},sbnds={},mode={},alloc={},"
-                    "bpool={},flags={},endi={}".format(
-                        self._sbc.frequency,
-                        self._sbc.blocks,
-                        self._sbc.subbands,
-                        self._sbc.mode,
-                        self._sbc.allocation,
-                        self._sbc.bitpool,
-                        self._sbc.flags,
-                        self._sbc.endian))
+                logger.debug("sbc: freq={},blks={},sbnds={},mode={},alloc={},bpool={},flags={},endi={}".format(
+                    self._sbc.frequency,
+                    self._sbc.blocks,
+                    self._sbc.subbands,
+                    self._sbc.mode,
+                    self._sbc.allocation,
+                    self._sbc.bitpool,
+                    self._sbc.flags,
+                    self._sbc.endian))
                 if self.on_pcm_format_ready:
                     self.ioloop.add_callback(self.on_pcm_format_ready)
                 decode_bufsize = \
@@ -241,10 +241,9 @@ class SBCDecoder:
                     ct.byref(written))
 
                 if decoded <= 0:
-                    logger.debug("SBC decoding error - decoded={}".format(
-                        decoded))
-                    break # make do with what we have
-                
+                    logger.debug("SBC decoding error - decoded={}".format(decoded))
+                    break  # make do with what we have
+
                 # update buffer pointers / counters
                 buf_p.value += decoded
                 to_decode.value -= decoded

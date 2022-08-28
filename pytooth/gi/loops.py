@@ -13,7 +13,6 @@ class GtkMainLoop:
     """
 
     def __init__(self):
-        DBusGMainLoop(set_as_default=True)
         self.__gi_loop = GLib.MainLoop()
         self.__asyncio_loop = IOLoop.current()
         self.__started = False

@@ -63,8 +63,7 @@ def main():
             logging.config.dictConfig(config["logging"])
             logging.info("Applied logging configuration.")
         except Exception as e:
-            print("WARNING! Could not parse logging configuration, logging may "
-                  "not be configured properly - {}".format(e))
+            print("WARNING! Error parsing logging config - {}".format(e))
 
     # make loop before connecting to DBus
     gtkloop = GtkMainLoop()

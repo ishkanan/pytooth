@@ -263,8 +263,7 @@ class OpenPairableAdapter(BaseAdapter):
                 DBUS_AGENT_PATH)
             logger.debug("Successfully registered as the default agent.")
         except Exception:
-            logger.exception("Error attempting to register the agent, retrying "
-                "in 15 seconds.")
+            logger.exception("Error registering the agent, retrying in 15 seconds.")
             io_loop.call_later(
                 delay=15,
                 callback=OpenPairableAdapter.register_agent,

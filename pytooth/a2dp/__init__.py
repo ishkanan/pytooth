@@ -1,9 +1,7 @@
 
 import logging
-import socket
 
 from pytooth.a2dp.managers import MediaManager, ProfileManager
-from pytooth.bluez5.helpers import Bluez5Utils
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +147,7 @@ class AdvancedAudioProfile:
         """
         if self.on_audio_track_changed:
             self.on_audio_track_changed(track=track)
-            
+
     def _media_unexpected_release(self, adapter):
         """Unexpected media endpoint release (something messing with Bluez5
         perhaps).

@@ -9,4 +9,4 @@ build/*
 dist/*
 .vscode
 packages/src/sbc-2.0/**
-
+output.log

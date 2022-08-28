@@ -55,7 +55,9 @@ setup(
     },
     tests_require=[],
     install_requires=install_requirements,
-    dependency_links=[],
+    dependency_links=[
+        "https://github.com/ishkanan/pydbus@master#egg=pydbus"
+    ],
     entry_points={
         "console_scripts": [
             "pytooth-test = pytooth.tests.main:main",
@@ -72,4 +74,3 @@ for lib in sources:
             srcdir=src_dir,
             libname=lib[0],
             libver=lib[1]))
-

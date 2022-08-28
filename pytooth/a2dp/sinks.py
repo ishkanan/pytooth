@@ -1,11 +1,8 @@
 
-from datetime import datetime, timedelta
 import logging
 
 import alsaaudio
 from tornado.ioloop import IOLoop
-
-from pytooth.other.buffers import ThreadSafeMemoryBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +18,7 @@ class AlsaAudioSink:
         self._decoder.on_data_ready = self._data_ready
         self._decoder.on_fatal_error = self._fatal_decoder_error
         self._decoder.on_pcm_format_ready = self._pcm_format_ready
-        
+
         # events
         self.on_fatal_error = None
 
@@ -53,14 +50,14 @@ class AlsaAudioSink:
             return
 
         self._started = False
-        self._socket.close() # do this first else decoder may lock
+        self._socket.close()  # do this first else decoder may lock
         self._decoder.stop()
 
         # cleanup ALSA device
         if not self._device:
             self._device.close()
             self._device = None
-        
+
         self._socket = None
 
     def _data_ready(self, data):
